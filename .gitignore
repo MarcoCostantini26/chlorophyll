@@ -1,0 +1,16 @@
+# Dipendenze
+node_modules/
+package-lock.json
+
+# File di sistema e log
+.DS_Store
+*.log
+npm-debug.log*
+
+# Variabili d'ambiente (password)
+.env
+.env.local
+
+# Build di produzione
+dist/
+build/
