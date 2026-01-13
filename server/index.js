@@ -20,10 +20,9 @@ const io = new Server(server, {
 app.use(cors());
 app.use(express.json());
 
-// Connessione MongoDB (assicurati di avere Mongo in esecuzione o usa Atlas)
-// mongoose.connect(process.env.MONGO_URI || 'mongodb://localhost:27017/chlorophyll')
-//   .then(() => console.log('🍃 MongoDB Connesso'))
-//   .catch(err => console.error('Errore MongoDB:', err));
+ mongoose.connect(process.env.MONGO_URI || 'mongodb://localhost:27017/chlorophyll')
+   .then(() => console.log('🍃 MongoDB Connesso'))
+   .catch(err => console.error('Errore MongoDB:', err));
 
 // WebSocket: Gestione connessioni
 io.on('connection', (socket) => {
