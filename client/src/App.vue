@@ -81,18 +81,21 @@ onMounted(() => {
 
   <div v-else class="container">
     
-    <div class="dashboard-top">
-      <div class="left-col">
+    <div class="title-section">
+      <h1 class="main-title">🍃 Chlorophyll Forest</h1>
+      <div :class="['status-dot', isConnected ? 'online' : 'offline']" title="Server"></div>
+    </div>
+
+    <div class="dashboard-top-flex">
+      
+      <div class="top-left-group">
         <header class="user-header">
           <div class="user-info">
             <h2>👤 {{ currentUser.username }}</h2>
             <span class="role-badge" :class="currentUser.role">{{ currentUser.role.replace('_', ' ') }}</span>
           </div>
-          
           <div v-if="currentUser.role !== 'public_monitor'" class="user-stats">
-            <div class="xp-bar">
-              <div class="xp-fill" :style="{ width: (currentUser.xp % 100) + '%' }"></div>
-            </div>
+            <div class="xp-bar"><div class="xp-fill" :style="{ width: (currentUser.xp % 100) + '%' }"></div></div>
             <p class="xp-text">Livello <strong>{{ currentUser.level }}</strong> ({{ currentUser.xp }} XP)</p>
           </div>
         </header>
@@ -104,26 +107,25 @@ onMounted(() => {
         </div>
       </div>
       
-      <div class="right-col">
+      <div class="top-right-group">
         <Leaderboard />
       </div>
     </div>
 
     <div v-if="showLevelUp" class="level-up-modal">🌟 LEVEL UP! 🌟</div>
-    <h1 class="main-title">🍃 Chlorophyll Forest</h1>
-    <div :class="['status-dot', isConnected ? 'online' : 'offline']" title="Server"></div>
 
     <AdminPanel v-if="isAdmin" />
+
     <TreeMap :trees="trees" @water-action="waterTree" /> 
     
-    <div class="separator">Vista Dettagliata</div>
+    <div class="separator">👇 DETTAGLIO FORESTA 👇</div>
 
     <div class="grid">
       <div v-for="tree in trees" :key="tree._id" class="card" :class="tree.status">
         <div class="card-header"><h3>{{ tree.name }}</h3></div>
         <div class="progress-container">
           <div class="progress-bar"><div class="fill" :style="{ width: tree.waterLevel + '%' }"></div></div>
-          <small>{{ tree.waterLevel }}%</small>
+          <small>{{ tree.waterLevel }}% Idratazione</small>
         </div>
 
         <div class="actions">
@@ -156,25 +158,65 @@ onMounted(() => {
 </template>
 
 <style scoped>
-/* --- FIX COLORI UTENTE --- */
-.user-info h2 { 
-  margin: 0; 
-  font-size: 1.3rem; 
-  color: #2c3e50; /* BLU SCURO QUASI NERO - Ora si vede! */
-  font-weight: 800;
+/* LAYOUT PC WIDE */
+.container { 
+  max-width: 1400px; /* Largo per PC */
+  margin: 0 auto; 
+  padding: 20px; 
+  font-family: 'Inter', sans-serif; 
 }
 
-.xp-text {
-  color: #2c3e50; /* BLU SCURO QUASI NERO - Ora si vede! */
-  font-size: 0.9rem;
-  margin: 5px 0 0 0;
-  font-weight: 600;
+/* TOP SECTION FLEX */
+.dashboard-top-flex {
+  display: flex;
+  gap: 20px;
+  margin-bottom: 30px;
+  flex-wrap: wrap; /* Permette di andare a capo se serve */
+  align-items: flex-start;
 }
 
-/* Resto dello stile */
-.dashboard-top { display: flex; gap: 20px; margin-bottom: 20px; flex-wrap: wrap; }
-.left-col { flex: 2; min-width: 300px; }
-.right-col { flex: 1; min-width: 200px; }
+.top-left-group {
+  flex: 3; /* Prende più spazio */
+  display: flex;
+  gap: 20px;
+  min-width: 350px;
+}
+.top-right-group {
+  flex: 1; /* Prende meno spazio */
+  min-width: 250px;
+}
+
+/* Stili Header Utente e Meteo */
+.user-header, .weather-widget {
+  flex: 1; 
+  height: auto;
+  min-height: 120px;
+  display: flex; flex-direction: column; justify-content: center;
+}
+
+/* Stili Header Utente (Colori Scuri) */
+.user-header { background: white; padding: 20px; border-radius: 12px; border: 1px solid #eee; box-shadow: 0 2px 5px rgba(0,0,0,0.02); }
+.user-info h2 { margin: 0; color: #2c3e50; font-size: 1.4rem; font-weight: 800; }
+.xp-text { color: #2c3e50; margin-top: 5px; font-weight: 600; }
+
+/* Stili Meteo */
+.weather-widget { padding: 20px; border-radius: 12px; color: white; font-weight: bold; text-align: center; box-shadow: 0 4px 10px rgba(0,0,0,0.1); transition: all 0.5s ease; }
+.weather-widget.sunny { background: linear-gradient(to right, #f2994a, #f2c94c); }
+.weather-widget.cloudy { background: linear-gradient(to right, #bdc3c7, #2c3e50); }
+.weather-widget.rainy { background: linear-gradient(to right, #373b44, #4286f4); }
+
+/* Titolo - ORA IN ALTO */
+.title-section { position: relative; text-align: center; margin-bottom: 30px; }
+.main-title { color: #27ae60; font-size: 2.5rem; margin: 0; }
+.status-dot { width: 15px; height: 15px; border-radius: 50%; display: inline-block; margin-left: 10px; vertical-align: middle; }
+.online { background: #2ecc71; box-shadow: 0 0 10px #2ecc71; }
+.offline { background: #e74c3c; }
+
+/* Griglia Alberi */
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 25px; }
+.card { background: white; padding: 25px; border-radius: 12px; border-left: 8px solid #ccc; box-shadow: 0 4px 12px rgba(0,0,0,0.05); }
+
+/* CSS Standard */
 .role-badge { padding: 4px 8px; border-radius: 4px; font-size: 0.7rem; color: white; font-weight: bold; text-transform: uppercase; }
 .role-badge.green_guardian { background: #27ae60; }
 .role-badge.city_manager { background: #8e44ad; }
@@ -185,31 +227,21 @@ onMounted(() => {
 .btn-debug { padding: 5px 10px; border-radius: 4px; border: none; cursor: pointer; color: white; font-weight: bold; }
 .btn-debug.minus { background: #e74c3c; }
 .btn-debug.plus { background: #3498db; }
-.container { max-width: 900px; margin: 0 auto; padding: 20px; font-family: 'Inter', sans-serif; position: relative; }
-.user-header { display: flex; justify-content: space-between; background: white; padding: 15px; border-radius: 12px; border: 1px solid #eee; margin-bottom: 10px; }
-.weather-widget { padding: 15px; border-radius: 12px; color: white; font-weight: bold; text-align: center; margin-bottom: 10px; }
-.weather-widget.sunny { background: linear-gradient(to right, #f2994a, #f2c94c); }
-.weather-widget.cloudy { background: linear-gradient(to right, #bdc3c7, #2c3e50); }
-.weather-widget.rainy { background: linear-gradient(to right, #373b44, #4286f4); }
-.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 20px; }
-.card { background: white; padding: 20px; border-radius: 12px; border-left: 6px solid #ccc; box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
 .card.healthy { border-left-color: #2ecc71; }
 .card.thirsty { border-left-color: #f39c12; }
 .card.critical { border-left-color: #e74c3c; }
 .progress-bar { width: 100%; height: 10px; background: #eee; border-radius: 5px; overflow: hidden; margin: 10px 0; }
 .fill { height: 100%; background: #3498db; transition: width 0.3s; }
 .actions { display: flex; gap: 10px; }
-button { width: 100%; padding: 10px; border: none; background: #2ecc71; color: white; border-radius: 6px; cursor: pointer; }
+button { width: 100%; padding: 12px; border: none; background: #2ecc71; color: white; border-radius: 6px; cursor: pointer; font-weight: bold; }
 .btn-ai { background: #8e44ad; width: 40%; }
 .ai-modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 2000; display: flex; justify-content: center; align-items: center; }
 .ai-modal { background: white; width: 90%; max-width: 400px; border-radius: 15px; padding: 0; overflow: hidden; }
 .ai-header { background: #8e44ad; color: white; padding: 15px; display: flex; justify-content: space-between; }
-.ai-body { padding: 20px; color: #333; } /* Anche qui testo scuro */
+.ai-body { padding: 20px; color: #333; }
 .close-btn { background: none; border: none; color: white; font-size: 1.2rem; cursor: pointer; }
-.main-title { text-align: center; color: #27ae60; }
-.status-dot { width: 10px; height: 10px; border-radius: 50%; position: absolute; top: 25px; right: 25px; }
-.online { background: #2ecc71; } .offline { background: #e74c3c; }
-.xp-bar { width: 100px; height: 6px; background: #eee; border-radius: 3px; overflow: hidden; margin-left: auto; }
+.xp-bar { width: 100%; height: 8px; background: #eee; border-radius: 3px; overflow: hidden; margin-top: 10px; }
 .xp-fill { height: 100%; background: #f1c40f; }
+.separator { text-align: center; margin: 30px 0; color: #95a5a6; font-size: 0.9rem; letter-spacing: 2px; text-transform: uppercase; }
 .level-up-modal { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: #f1c40f; color: white; padding: 20px; border-radius: 30px; font-size: 2rem; z-index: 3000; font-weight: bold; }
 </style>

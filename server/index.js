@@ -145,12 +145,32 @@ app.post('/api/ai/consult', async (req, res) => {
 });
 
 // Admin Stats
+// ADMIN STATS
 app.get('/api/admin/stats', async (req, res) => {
-  const total = await Tree.countDocuments();
-  const crit = await Tree.countDocuments({ status: 'critical' });
-  const healthy = await Tree.countDocuments({ status: 'healthy' });
-  const thirsty = await Tree.countDocuments({ status: 'thirsty' });
-  res.json({ totalTrees: total, criticalTrees: crit, healthyTrees: healthy, thirstyTrees: thirsty, avgWater: 50 });
+  try {
+    // Scarichiamo tutti gli alberi per contare "a mano" ed evitare errori di database
+    const allTrees = await Tree.find();
+    
+    const totalTrees = allTrees.length;
+    
+    // Contiamo gli stati filtrando l'array
+    const criticalTrees = allTrees.filter(t => t.status === 'critical').length;
+    const healthyTrees = allTrees.filter(t => t.status === 'healthy').length;
+    const thirstyTrees = allTrees.filter(t => t.status === 'thirsty').length;
+    
+    // Calcolo Media Manuale (Più sicuro)
+    let sumWater = 0;
+    allTrees.forEach(t => {
+      // Assicuriamoci che sia un numero, altrimenti 0
+      sumWater += (typeof t.waterLevel === 'number' ? t.waterLevel : 0);
+    });
+    
+    const avgWater = totalTrees > 0 ? Math.round(sumWater / totalTrees) : 0;
+
+    res.json({ totalTrees, criticalTrees, healthyTrees, thirstyTrees, avgWater });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
 });
 
 // Admin Logs

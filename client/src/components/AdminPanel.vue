@@ -1,5 +1,6 @@
 <script setup>
 import { ref, onMounted, onUnmounted } from 'vue';
+import StatusChart from './StatusChart.vue';
 
 const stats = ref(null);
 const logs = ref([]);
@@ -31,101 +32,83 @@ onUnmounted(() => {
   <div class="admin-dashboard">
     <div class="header-panel">
       <h3>🏙️ City Manager Control Room</h3>
-      <span class="live-badge">● LIVE DATA</span>
-    </div>
-
-    <div v-if="stats" class="stats-row">
-      <div class="stat-card">
-        <span class="label">Totale Alberi</span>
-        <span class="number">{{ stats.totalTrees }}</span>
-      </div>
-      <div class="stat-card danger">
-        <span class="label">Critici</span>
-        <span class="number">{{ stats.criticalTrees }}</span>
-      </div>
-      <div class="stat-card warning">
-        <span class="label">Assetati</span>
-        <span class="number">{{ stats.thirstyTrees }}</span>
-      </div>
-      <div class="stat-card info">
-        <span class="label">Media Acqua</span>
-        <span class="number">{{ stats.avgWater }}%</span>
+      <div class="badges">
+        <span class="live-badge">● LIVE DATA</span>
       </div>
     </div>
 
-    <div class="logs-section">
-      <h4>📜 Registro Attività Community</h4>
-      <ul>
-        <li v-for="log in logs" :key="log._id">
-          <span class="time">{{ new Date(log.timestamp).toLocaleTimeString() }}</span>
-          <span class="log-details">
-            <strong>{{ log.user ? log.user.username : 'Sistema' }}</strong> 
-            : {{ log.tree ? log.tree.name : 'Albero' }}
-          </span>
-        </li>
-        <li v-if="logs.length === 0" class="empty-log">Nessuna attività recente</li>
-      </ul>
+    <div class="dashboard-grid" v-if="stats">
+      
+      <div class="grid-section stats-numbers">
+        <div class="stat-box main">
+          <span class="lbl">Totale Alberi</span>
+          <span class="val">{{ stats.totalTrees }}</span>
+        </div>
+        <div class="stat-box blue">
+          <span class="lbl">Media Acqua</span>
+          <span class="val">{{ stats.avgWater || 0 }}%</span>
+        </div>
+      </div>
+
+      <div class="grid-section chart-container">
+        <StatusChart :stats="stats" />
+      </div>
+
+      <div class="grid-section logs-container">
+        <h4>📜 Registro Attività</h4>
+        <ul>
+          <li v-for="log in logs" :key="log._id">
+            <span class="time">{{ new Date(log.timestamp).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}) }}</span>
+            <span class="desc">
+              <strong>{{ log.user ? log.user.username : 'Sistema' }}</strong>: {{ log.tree ? log.tree.name : 'Unknown' }}
+            </span>
+          </li>
+          <li v-if="logs.length === 0" class="empty">Nessuna attività</li>
+        </ul>
+      </div>
+
     </div>
   </div>
 </template>
 
 <style scoped>
-/* SFONDO BIANCO E TESTO SCURO PER LEGGIBILITÀ */
 .admin-dashboard {
-  background: #ffffff; /* Sfondo bianco */
-  color: #2c3e50;      /* Testo scuro */
-  padding: 20px; 
-  border-radius: 12px;
-  margin-bottom: 30px; 
-  border: 2px solid #8e44ad; /* Bordo viola City Manager */
-  box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+  background: white; color: #2c3e50; padding: 25px; border-radius: 12px;
+  margin-bottom: 40px; border: 2px solid #8e44ad;
+  box-shadow: 0 10px 30px rgba(142, 68, 173, 0.1);
 }
 
-.header-panel { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
-.header-panel h3 { margin: 0; color: #8e44ad; font-weight: 800; } /* Titolo Viola */
-.live-badge { color: #e74c3c; font-size: 0.7rem; font-weight: bold; animation: blink 1s infinite; padding: 2px 6px; border: 1px solid #e74c3c; border-radius: 4px; }
+.header-panel { display: flex; justify-content: space-between; margin-bottom: 20px; border-bottom: 1px solid #eee; padding-bottom: 10px; }
+.header-panel h3 { margin: 0; color: #8e44ad; font-weight: 800; font-size: 1.2rem; }
+.live-badge { border: 1px solid #e74c3c; color: #e74c3c; padding: 3px 8px; border-radius: 4px; font-size: 0.7rem; font-weight: bold; animation: blink 1s infinite; }
 
-/* CARD STATISTICHE */
-.stats-row { display: flex; gap: 15px; margin-bottom: 20px; flex-wrap: wrap; }
-.stat-card {
-  background: #f8f9fa; /* Grigio chiarissimo */
-  border: 1px solid #e9ecef;
-  flex: 1; padding: 15px; border-radius: 8px;
-  text-align: center; min-width: 100px;
+/* LAYOUT GRIGLIA PER PC */
+.dashboard-grid {
+  display: grid;
+  grid-template-columns: 200px 1fr 300px; /* Colonne: Fissa, Elastica, Fissa */
+  gap: 30px;
+  align-items: center;
 }
 
-/* Colori Specifici per le Labels e Numeri */
-.stat-card .label { display: block; font-size: 0.75rem; color: #7f8c8d; text-transform: uppercase; font-weight: bold; letter-spacing: 0.5px; margin-bottom: 5px; }
-.stat-card .number { font-size: 1.8rem; font-weight: 900; color: #2c3e50; }
+/* 1. Numeri */
+.stats-numbers { display: flex; flex-direction: column; gap: 15px; }
+.stat-box { background: #f8f9fa; padding: 15px; border-radius: 8px; text-align: center; border: 1px solid #eee; }
+.stat-box .lbl { display: block; font-size: 0.75rem; color: #7f8c8d; text-transform: uppercase; font-weight: bold; }
+.stat-box .val { display: block; font-size: 2rem; font-weight: 900; color: #2c3e50; }
+.stat-box.blue { background: #ebf5fb; border-color: #aed6f1; }
+.stat-box.blue .val { color: #3498db; }
 
-/* Varianti colorate (Sfondo leggero + Bordo colorato) */
-.stat-card.danger { background: #fdf0ed; border-color: #fadbd8; }
-.stat-card.danger .number { color: #e74c3c; }
+/* 2. Grafico */
+.chart-container { height: 180px; display: flex; justify-content: center; position: relative; }
 
-.stat-card.warning { background: #fef9e7; border-color: #f9e79f; }
-.stat-card.warning .number { color: #f39c12; }
+/* 3. Logs */
+.logs-container { background: #fafafa; border: 1px solid #eee; border-radius: 8px; padding: 15px; height: 100%; min-height: 180px; display: flex; flex-direction: column; }
+.logs-container h4 { margin: 0 0 10px 0; font-size: 0.8rem; color: #95a5a6; text-transform: uppercase; }
+ul { list-style: none; padding: 0; margin: 0; overflow-y: auto; max-height: 140px; flex-grow: 1; }
+li { font-size: 0.85rem; padding: 6px 0; border-bottom: 1px solid #eee; display: flex; gap: 10px; }
+.time { color: #95a5a6; font-family: monospace; }
+.desc strong { color: #8e44ad; }
+.empty { text-align: center; color: #ccc; margin-top: 20px; font-style: italic; }
 
-.stat-card.info { background: #ebf5fb; border-color: #aed6f1; }
-.stat-card.info .number { color: #3498db; }
-
-/* LOG SECTION */
-.logs-section { background: #f8f9fa; padding: 15px; border-radius: 8px; border: 1px solid #e9ecef; }
-.logs-section h4 { margin: 0 0 10px 0; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 1px; color: #95a5a6; }
-
-ul { list-style: none; padding: 0; margin: 0; max-height: 150px; overflow-y: auto; }
-li { font-size: 0.9rem; padding: 8px 0; border-bottom: 1px solid #eee; display: flex; align-items: center; }
-li:last-child { border-bottom: none; }
-
-.time { color: #95a5a6; font-size: 0.75rem; min-width: 65px; font-family: monospace; }
-.log-details { color: #34495e; }
-.log-details strong { color: #8e44ad; } /* Nome utente viola */
-
-.empty-log { text-align: center; color: #bdc3c7; font-style: italic; padding: 10px; }
-
-/* Scrollbar carina */
-ul::-webkit-scrollbar { width: 6px; }
-ul::-webkit-scrollbar-track { background: transparent; }
-ul::-webkit-scrollbar-thumb { background: #ccc; border-radius: 3px; }
-
-@keyframes blink { 0% { opacity: 1; } 50% { opacity: 0.4; } 100% { opacity: 1; } }
+@keyframes blink { 0% { opacity: 1; } 50% { opacity: 0.5; } 100% { opacity: 1; } }
 </style>
