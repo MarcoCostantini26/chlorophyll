@@ -1,5 +1,6 @@
 require('dotenv').config();
 const express = require('express');
+const { startWeatherSimulation } = require('./weatherService');
 const http = require('http');
 const { Server } = require('socket.io');
 const mongoose = require('mongoose');
@@ -113,6 +114,7 @@ app.get('/api/users/mock-login', async (req, res) => {
   }
 });
 
+startWeatherSimulation(io);
 // Avvio Server
 server.listen(PORT, () => {
   console.log(`🚀 Server attivo su http://localhost:${PORT}`);
