@@ -1,58 +1,80 @@
 const Tree = require('./models/Tree');
 
-// Stati meteo possibili
 const WEATHER_TYPES = ['sunny', 'cloudy', 'rainy'];
-
 let currentWeather = 'sunny';
+
+// --- LOGICA DELLE SOGLIE ---
+// Qui decidiamo esattamente quando cambia colore
+const calculateStatus = (level) => {
+  if (level >= 60) return 'healthy';  // Solo sopra il 60% è verde
+  if (level > 20) return 'thirsty';   // Tra 21% e 59% è giallo
+  return 'critical';                  // Sotto il 20% è rosso
+};
 
 const startWeatherSimulation = (io) => {
   console.log('🌦️ Simulazione Meteo avviata...');
 
-  // Ogni 20 secondi cambia il tempo
+  // Cambiamo meteo ogni 10 secondi per testare velocemente
   setInterval(async () => {
-    // 1. Cambia Meteo in modo casuale
+    
+    // 1. Decidiamo il meteo
     const randomIndex = Math.floor(Math.random() * WEATHER_TYPES.length);
     currentWeather = WEATHER_TYPES[randomIndex];
     
-    console.log(`🌍 CAMBIO METEO: Ora è ${currentWeather.toUpperCase()}`);
-
-    // Avvisa i client che il tempo è cambiato
+    // Inviamo l'aggiornamento meteo al frontend
     io.emit('weather_update', currentWeather);
 
-    // 2. SE PIOVE: Innaffia tutti gli alberi!
-    if (currentWeather === 'rainy') {
-      try {
-        console.log('🌧️ Sta piovendo! Innaffio automatico foresta...');
-        
-        // Trova alberi non pieni e aggiungi acqua
-        const result = await Tree.updateMany(
-          { waterLevel: { $lt: 100 } }, // Filtro: solo quelli non pieni
-          { 
-            $inc: { waterLevel: 10 }, // Incrementa acqua
-            $set: { status: 'healthy' } // La pioggia fa bene
-          }
-        );
+    try {
+      // Prendiamo TUTTI gli alberi per analizzarli uno a uno
+      const allTrees = await Tree.find();
+      let treesChanged = false;
 
-        if (result.modifiedCount > 0) {
-          console.log(`🌲 ${result.modifiedCount} alberi beneficiati dalla pioggia.`);
-          
-          // Dobbiamo rimandare i dati aggiornati al frontend
-          const updatedTrees = await Tree.find();
-          io.emit('trees_refresh', updatedTrees); // Nuovo evento per ricaricare tutto
+      for (const tree of allTrees) {
+        let oldStatus = tree.status;
+        let oldWater = tree.waterLevel;
+
+        // --- CASO PIOGGIA 🌧️ ---
+        if (currentWeather === 'rainy') {
+          // Aumenta l'acqua di 10 (senza superare 100)
+          tree.waterLevel = Math.min(tree.waterLevel + 10, 100);
+        } 
+        
+        // --- CASO SOLE ☀️ ---
+        else if (currentWeather === 'sunny') {
+          // Diminuisce l'acqua di 5 (senza scendere sotto 0)
+          tree.waterLevel = Math.max(tree.waterLevel - 5, 0);
+        }
+        
+        // --- CASO NUVOLOSO ☁️ ---
+        else {
+          // Opzionale: evaporazione leggera o nulla
+          tree.waterLevel = Math.max(tree.waterLevel - 1, 0);
         }
 
-      } catch (err) {
-        console.error('Errore pioggia:', err);
+        // --- RICALCOLO DELLO STATO ---
+        // Applico la funzione rigorosa scritta sopra
+        tree.status = calculateStatus(tree.waterLevel);
+
+        // Se è cambiato qualcosa (acqua o stato), salvo e segno che devo aggiornare il client
+        if (tree.waterLevel !== oldWater || tree.status !== oldStatus) {
+          await tree.save();
+          treesChanged = true;
+        }
       }
+
+      // Se almeno un albero è cambiato, invio la lista aggiornata a tutti
+      if (treesChanged) {
+        // Ricarico gli alberi freschi dal DB per sicurezza
+        const updatedTrees = await Tree.find();
+        io.emit('trees_refresh', updatedTrees);
+        // console.log(`🌍 Aggiornamento Foresta inviato (Meteo: ${currentWeather})`);
+      }
+
+    } catch (err) {
+      console.error('Errore simulazione meteo:', err);
     }
 
-    // 3. SE C'È IL SOLE: L'acqua evapora un po' (Opzionale, per realismo)
-    if (currentWeather === 'sunny') {
-       await Tree.updateMany({ waterLevel: { $gt: 0 } }, { $inc: { waterLevel: -2 } });
-       // Non emettiamo update continuo per non intasare, aggiorneranno al prossimo click o refresh
-    }
-
-  }, 20000); // 20 secondi
+  }, 10000); // Ogni 10 secondi
 };
 
 module.exports = { startWeatherSimulation };
