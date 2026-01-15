@@ -5,113 +5,49 @@ import TreeMap from './components/TreeMap.vue';
 import Login from './components/Login.vue';
 import AdminPanel from './components/AdminPanel.vue';
 import Leaderboard from './components/Leaderboard.vue';
+import BadgeList from './components/BadgeList.vue';
 
 const socket = io('http://localhost:3000');
+
+// --- STATO DATI ---
 const trees = ref([]);
 const currentUser = ref(null);
 const isConnected = ref(false);
-const showLevelUp = ref(false);
 const currentWeather = ref('sunny');
+
+// --- STATO UI & MODALI ---
+const showLevelUp = ref(false);
 const showAiModal = ref(false);
 const aiResponse = ref('');
 const isAiThinking = ref(false);
-
-// NUOVO: Stato dei permessi notifiche
+const showBadgeModal = ref(false);
+const lastUnlockedBadge = ref({ name: '', desc: '' });
 const notificationPermission = ref(Notification.permission);
 
+// --- COMPUTED ---
 const canInteract = computed(() => currentUser.value && (currentUser.value.role === 'green_guardian' || currentUser.value.role === 'city_manager'));
 const isAdmin = computed(() => currentUser.value && currentUser.value.role === 'city_manager');
 
-const handleLoginSuccess = (user) => {
-  currentUser.value = user;
-  // Proviamo a chiedere il permesso subito dopo il login
-  if (Notification.permission === 'default') {
-    requestNotificationPermission();
-  }
-};
-
+// --- FUNZIONI (Logica invariata) ---
+const handleLoginSuccess = (user) => { currentUser.value = user; if (Notification.permission === 'default') requestNotificationPermission(); };
 const handleGuestAccess = () => currentUser.value = { _id: 'guest', username: 'Public Monitor', role: 'public_monitor', xp: 0, level: 0 };
-
-// NUOVO: Funzione per chiedere permesso
-const requestNotificationPermission = async () => {
-  const permission = await Notification.requestPermission();
-  notificationPermission.value = permission;
-  if (permission === 'granted') {
-    new Notification("Notifiche Attivate! 🔔", { body: "Ti avviseremo se la foresta ha bisogno di te." });
-  }
-};
-
-// NUOVO: Funzione per inviare notifica
-const sendNotification = (title, body) => {
-  if (notificationPermission.value === 'granted') {
-    new Notification(title, { body, icon: '/favicon.ico' }); // Usa l'icona di default di Vite
-  }
-};
-
-const fetchTrees = async () => {
-  const res = await fetch('http://localhost:3000/api/trees');
-  trees.value = await res.json();
-};
-
-const waterTree = (treeId) => {
-  if (!canInteract.value) return;
-  socket.emit('water_tree', { treeId, userId: currentUser.value._id });
-};
-
-const forceWater = (treeId, amount) => {
-  socket.emit('admin_force_water', { treeId, amount });
-};
-
-const askDrChlorophyll = async (tree) => {
-  showAiModal.value = true;
-  isAiThinking.value = true;
-  aiResponse.value = '';
-  try {
-    const res = await fetch('http://localhost:3000/api/ai/consult', {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({ treeId: tree._id })
-    });
-    const data = await res.json();
-    aiResponse.value = data.message;
-  } catch (e) { aiResponse.value = "Errore AI"; } 
-  finally { isAiThinking.value = false; }
-};
+const requestNotificationPermission = async () => { const p = await Notification.requestPermission(); notificationPermission.value = p; if (p === 'granted') new Notification("Notifiche Attivate! 🔔"); };
+const sendNotification = (t, b) => { if (notificationPermission.value === 'granted') new Notification(t, { body: b }); };
+const fetchTrees = async () => { const res = await fetch('http://localhost:3000/api/trees'); trees.value = await res.json(); };
+const askDrChlorophyll = async (tree) => { showAiModal.value = true; isAiThinking.value = true; aiResponse.value = ''; try { const res = await fetch('http://localhost:3000/api/ai/consult', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ treeId: tree._id }) }); const data = await res.json(); aiResponse.value = data.message; } catch (e) { aiResponse.value = "Errore AI"; } finally { isAiThinking.value = false; } };
+const waterTree = (treeId) => { if (!canInteract.value) return; socket.emit('water_tree', { treeId, userId: currentUser.value._id }); };
+const forceWater = (treeId, amount) => { socket.emit('admin_force_water', { treeId, amount }); };
 
 onMounted(() => {
   fetchTrees();
   socket.on('connect', () => isConnected.value = true);
   socket.on('disconnect', () => isConnected.value = false);
-  
-  socket.on('tree_updated', (t) => {
-    const idx = trees.value.findIndex(x => x._id === t._id);
-    // Controllo se l'albero è appena diventato critico per notificare
-    if (idx !== -1) {
-      // NUOVO: Se l'albero diventa critico, manda notifica
-      if (t.status === 'critical' && trees.value[idx].status !== 'critical') {
-        sendNotification("⚠️ ALBERO CRITICO!", `${t.name} sta morendo di sete! Corri a innaffiare!`);
-      }
-      trees.value[idx] = t;
-    }
-  });
-
+  socket.on('tree_updated', (t) => { const idx = trees.value.findIndex(x => x._id === t._id); if (idx !== -1) trees.value[idx] = t; });
   socket.on('trees_refresh', (all) => trees.value = all);
-  socket.on('weather_update', (w) => {
-    // NUOVO: Notifica cambio meteo
-    if (w !== currentWeather.value) {
-      if (w === 'rainy') sendNotification("🌧️ Sta piovendo!", "La natura innaffia gli alberi per te.");
-      currentWeather.value = w;
-    }
-  });
-
+  socket.on('weather_update', (w) => { if (w !== currentWeather.value) { if (w === 'rainy') sendNotification("🌧️ Piove!", "Auto-innaffio attivo."); currentWeather.value = w; } });
   socket.on('user_updated', (u) => { if (currentUser.value && currentUser.value._id === u._id) currentUser.value = u; });
-  
-  socket.on('level_up', (data) => { 
-    showLevelUp.value = true; 
-    // NUOVO: Notifica Level UP
-    sendNotification("🎉 LEVEL UP!", `Congratulazioni! Ora sei al livello ${data.level}!`);
-    setTimeout(() => showLevelUp.value = false, 3000); 
-  });
+  socket.on('level_up', (d) => { showLevelUp.value = true; sendNotification("🎉 LEVEL UP!", `Livello ${d.level}!`); setTimeout(() => showLevelUp.value = false, 3000); });
+  socket.on('badge_unlocked', (d) => { if (currentUser.value && currentUser.value.username === d.username) { lastUnlockedBadge.value = d.badge; showBadgeModal.value = true; sendNotification("🏆 BADGE!", d.badge.name); setTimeout(() => showBadgeModal.value = false, 4000); } });
 });
 </script>
 
@@ -119,137 +55,219 @@ onMounted(() => {
   <Login v-if="!currentUser" @login-success="handleLoginSuccess" @guest-access="handleGuestAccess" />
 
   <div v-else class="container">
-    <div class="title-section">
-      <h1 class="main-title">🍃 Chlorophyll Forest</h1>
-      <div :class="['status-dot', isConnected ? 'online' : 'offline']" title="Server"></div>
-      
-      <button v-if="notificationPermission === 'default'" @click="requestNotificationPermission" class="btn-notif">
-        🔔 Attiva Notifiche
-      </button>
-    </div>
-
-    <div class="dashboard-top-flex">
-      <div class="top-left-group">
-        <header class="user-header">
-          <div class="user-info">
-            <h2>👤 {{ currentUser.username }}</h2>
-            <span class="role-badge" :class="currentUser.role">{{ currentUser.role.replace('_', ' ') }}</span>
-          </div>
-          <div v-if="currentUser.role !== 'public_monitor'" class="user-stats">
-            <div class="xp-bar"><div class="xp-fill" :style="{ width: (currentUser.xp % 100) + '%' }"></div></div>
-            <p class="xp-text">Livello <strong>{{ currentUser.level }}</strong> ({{ currentUser.xp }} XP)</p>
-          </div>
-        </header>
-
-        <div class="weather-widget" :class="currentWeather">
-          <div v-if="currentWeather === 'sunny'">☀️ SOLE <small>(Evaporazione)</small></div>
-          <div v-if="currentWeather === 'cloudy'">☁️ NUVOLOSO <small>(Stabile)</small></div>
-          <div v-if="currentWeather === 'rainy'">🌧️ PIOGGIA <small>(Auto-Innaffio)</small></div>
-        </div>
-      </div>
-      
-      <div class="top-right-group"><Leaderboard /></div>
-    </div>
-
-    <div v-if="showLevelUp" class="level-up-modal">🌟 LEVEL UP! 🌟</div>
     
-    <AdminPanel v-if="isAdmin" />
-    <TreeMap :trees="trees" @water-action="waterTree" /> 
-    <div class="separator">👇 DETTAGLIO FORESTA 👇</div>
+    <div class="app-header">
+      <div class="header-left">
+        <h1 class="main-title">🍃 Chlorophyll</h1>
+        <div :class="['status-pill', isConnected ? 'online' : 'offline']">
+          {{ isConnected ? 'System Online' : 'System Offline' }}
+        </div>
+      </div>
+      <button v-if="notificationPermission === 'default'" @click="requestNotificationPermission" class="btn-notif">🔔 Attiva Notifiche</button>
+    </div>
 
-    <div class="grid">
-      <div v-for="tree in trees" :key="tree._id" class="card" :class="tree.status">
-        <div class="card-header"><h3>{{ tree.name }}</h3></div>
-        <div class="progress-container">
-          <div class="progress-bar"><div class="fill" :style="{ width: tree.waterLevel + '%' }"></div></div>
-          <small>{{ tree.waterLevel }}% Idratazione</small>
+    <div class="main-layout">
+      
+      <div class="content-column">
+        
+        <div class="dashboard-top-row">
+          
+          <div class="info-stack">
+            <div class="dashboard-card user-card">
+              <div class="user-flex">
+                <div class="user-avatar">👤</div>
+                <div class="user-details">
+                  <h2>{{ currentUser.username }}</h2>
+                  <span class="role-badge" :class="currentUser.role">{{ currentUser.role.replace('_', ' ') }}</span>
+                </div>
+              </div>
+              <div v-if="currentUser.role !== 'public_monitor'" class="user-xp-section">
+                <div class="xp-header">
+                  <span>Lvl <strong>{{ currentUser.level }}</strong></span>
+                  <small>{{ currentUser.xp }} XP</small>
+                </div>
+                <div class="xp-bar"><div class="xp-fill" :style="{ width: (currentUser.xp % 100) + '%' }"></div></div>
+              </div>
+            </div>
+
+            <div class="dashboard-card weather-card" :class="currentWeather">
+              <div class="weather-icon">
+                <span v-if="currentWeather === 'sunny'">☀️</span>
+                <span v-if="currentWeather === 'cloudy'">☁️</span>
+                <span v-if="currentWeather === 'rainy'">🌧️</span>
+              </div>
+              <div class="weather-info">
+                <h3>{{ currentWeather === 'sunny' ? 'Soleggiato' : currentWeather === 'cloudy' ? 'Nuvoloso' : 'Pioggia' }}</h3>
+                <small v-if="currentWeather === 'rainy'">Auto-Innaffio Attivo</small>
+                <small v-else>Condizioni Stabili</small>
+              </div>
+            </div>
+          </div>
+
+          <div class="badges-container">
+            <BadgeList :user="currentUser" class="full-height-badge" />
+          </div>
+
         </div>
-        <div class="actions">
-          <button @click="waterTree(tree._id)" :disabled="!canInteract || tree.waterLevel >= 100" :class="{ 'btn-disabled': !canInteract }">
-            {{ canInteract ? '💧 Innaffia' : '🔒 Solo Guardian' }}
-          </button>
-          <button @click="askDrChlorophyll(tree)" class="btn-ai">🤖 AI</button>
-        </div>
-        <div v-if="isAdmin" class="debug-controls">
-          <small>Admin Test</small>
-          <div class="debug-buttons">
-            <button class="btn-debug minus" @click="forceWater(tree._id, -20)">-20%</button>
-            <button class="btn-debug plus" @click="forceWater(tree._id, 20)">+20%</button>
+
+        <AdminPanel v-if="isAdmin" />
+
+        <TreeMap :trees="trees" @water-action="waterTree" /> 
+        
+        <div class="separator">👇 STATO FORESTA 👇</div>
+
+        <div class="grid">
+          <div v-for="tree in trees" :key="tree._id" class="card" :class="tree.status">
+            <div class="card-header"><h3>{{ tree.name }}</h3></div>
+            <div class="progress-container">
+              <div class="progress-bar"><div class="fill" :style="{ width: tree.waterLevel + '%' }"></div></div>
+              <small>{{ tree.waterLevel }}% Idratazione</small>
+            </div>
+            <div class="actions">
+              <button @click="waterTree(tree._id)" :disabled="!canInteract || tree.waterLevel >= 100" :class="{ 'btn-disabled': !canInteract }">
+                {{ canInteract ? '💧 Innaffia' : '🔒 Solo Guardian' }}
+              </button>
+              <button @click="askDrChlorophyll(tree)" class="btn-ai">🤖 AI</button>
+            </div>
+            <div v-if="isAdmin" class="debug-controls">
+              <div class="debug-buttons">
+                <button class="btn-debug minus" @click="forceWater(tree._id, -20)">-</button>
+                <button class="btn-debug plus" @click="forceWater(tree._id, 20)">+</button>
+              </div>
+            </div>
           </div>
         </div>
-      </div>
-    </div>
 
-    <div v-if="showAiModal" class="ai-modal-overlay" @click.self="showAiModal = false">
-      <div class="ai-modal">
-        <div class="ai-header"><h3>🤖 Dr. Chlorophyll</h3><button @click="showAiModal = false" class="close-btn">✖</button></div>
-        <div class="ai-body">
-          <div v-if="isAiThinking" class="thinking">...Analisi...</div>
-          <p v-else>{{ aiResponse }}</p>
+      </div> 
+      <aside class="sidebar-column">
+        <div class="sticky-sidebar">
+          <Leaderboard />
         </div>
-      </div>
-    </div>
+      </aside>
+
+    </div> 
+    <div v-if="showLevelUp" class="level-up-modal">🌟 LEVEL UP! 🌟</div>
+    <div v-if="showBadgeModal" class="badge-modal"><div class="badge-icon">🏆</div><h3>BADGE SBLOCCATO!</h3><p class="badge-name">{{ lastUnlockedBadge.name }}</p><small>{{ lastUnlockedBadge.desc }}</small></div>
+    <div v-if="showAiModal" class="ai-modal-overlay" @click.self="showAiModal = false"><div class="ai-modal"><div class="ai-header"><h3>🤖 Dr. Chlorophyll</h3><button @click="showAiModal = false" class="close-btn">✖</button></div><div class="ai-body"><div v-if="isAiThinking" class="thinking">...Analisi...</div><p v-else>{{ aiResponse }}</p></div></div></div>
+
   </div>
 </template>
 
 <style scoped>
-/* BASE STYLES */
-.container { max-width: 1400px; margin: 0 auto; padding: 20px; font-family: 'Inter', sans-serif; }
-.dashboard-top-flex { display: flex; gap: 20px; margin-bottom: 30px; align-items: stretch; }
-.top-left-group { flex: 3; display: flex; gap: 20px; }
-.top-right-group { flex: 1; min-width: 280px; }
-.user-header, .weather-widget { flex: 1; display: flex; flex-direction: column; justify-content: center; }
-.user-header { background: white; padding: 20px; border-radius: 12px; border: 1px solid #eee; box-shadow: 0 2px 5px rgba(0,0,0,0.02); }
-.user-info h2 { margin: 0; color: #2c3e50; font-size: 1.4rem; font-weight: 800; }
-.xp-text { color: #2c3e50; margin-top: 5px; font-weight: 600; }
-.weather-widget { padding: 20px; border-radius: 12px; color: white; font-weight: bold; text-align: center; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
-.weather-widget.sunny { background: linear-gradient(to right, #f2994a, #f2c94c); }
-.weather-widget.cloudy { background: linear-gradient(to right, #bdc3c7, #2c3e50); }
-.weather-widget.rainy { background: linear-gradient(to right, #373b44, #4286f4); }
-.title-section { text-align: center; margin-bottom: 30px; }
-.main-title { color: #27ae60; font-size: 2.5rem; margin: 0; }
-.status-dot { width: 15px; height: 15px; border-radius: 50%; display: inline-block; margin-left: 10px; vertical-align: middle; }
-.online { background: #2ecc71; box-shadow: 0 0 10px #2ecc71; }
-.offline { background: #e74c3c; }
+/* GENERALE */
+.container { max-width: 1400px; margin: 0 auto; padding: 20px 30px; font-family: 'Inter', sans-serif; }
 
-/* Nuovo bottone notifiche */
-.btn-notif { background: #f39c12; color: white; border: none; padding: 5px 15px; border-radius: 20px; cursor: pointer; font-weight: bold; margin-top: 10px; font-size: 0.8rem; display: inline-block; }
-.btn-notif:hover { background: #d35400; }
+/* HEADER */
+.app-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 25px; border-bottom: 1px solid #eee; padding-bottom: 15px; }
+.header-left { display: flex; align-items: center; gap: 15px; }
+.main-title { color: #27ae60; font-size: 1.8rem; margin: 0; font-weight: 800; }
+.status-pill { padding: 4px 10px; border-radius: 20px; font-size: 0.75rem; font-weight: bold; color: white; display: flex; align-items: center; }
+.status-pill::before { content: ''; display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: white; margin-right: 6px; }
+.online { background: #2ecc71; } .offline { background: #e74c3c; }
+.btn-notif { background: #f39c12; color: white; border: none; padding: 8px 15px; border-radius: 6px; cursor: pointer; font-weight: bold; }
 
-.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 25px; }
-.card { background: white; padding: 25px; border-radius: 12px; border-left: 8px solid #ccc; box-shadow: 0 4px 12px rgba(0,0,0,0.05); }
-.role-badge { padding: 4px 8px; border-radius: 4px; font-size: 0.7rem; color: white; font-weight: bold; text-transform: uppercase; }
-.role-badge.green_guardian { background: #27ae60; }
-.role-badge.city_manager { background: #8e44ad; }
-.role-badge.public_monitor { background: #7f8c8d; }
-.xp-bar { width: 100%; height: 8px; background: #eee; border-radius: 3px; overflow: hidden; margin-top: 10px; }
-.xp-fill { height: 100%; background: #f1c40f; }
-.separator { text-align: center; margin: 30px 0; color: #95a5a6; font-size: 0.9rem; letter-spacing: 2px; text-transform: uppercase; }
-.actions { display: flex; gap: 10px; margin-top: 15px; }
-button { width: 100%; padding: 12px; border: none; background: #2ecc71; color: white; border-radius: 6px; cursor: pointer; font-weight: bold; }
+/* LAYOUT PRINCIPALE (GRID) */
+.main-layout {
+  display: grid;
+  grid-template-columns: 3fr 1fr; /* 75% Contenuto, 25% Sidebar */
+  gap: 30px;
+}
+
+/* SIDEBAR */
+.sidebar-column {
+  min-width: 250px;
+}
+/* Rende la classifica fissa quando scorri */
+.sticky-sidebar {
+  position: sticky;
+  top: 20px;
+}
+
+/* DASHBOARD SUPERIORE */
+.dashboard-top-row {
+  display: grid;
+  grid-template-columns: 1fr 1.5fr; /* Info a sinistra, Badge più larghi a destra */
+  gap: 20px;
+  margin-bottom: 30px;
+}
+
+/* Pila Info (Utente sopra, Meteo sotto) */
+.info-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.dashboard-card { 
+  background: white; border-radius: 12px; padding: 15px; 
+  box-shadow: 0 4px 15px rgba(0,0,0,0.03); border: 1px solid #f0f2f5; 
+  flex: 1; /* Per riempire lo spazio */
+}
+
+/* User Card Styles */
+.user-flex { display: flex; align-items: center; gap: 15px; margin-bottom: 10px; }
+.user-avatar { font-size: 2rem; background: #f0f2f5; width: 50px; height: 50px; display: flex; align-items: center; justify-content: center; border-radius: 50%; }
+.user-details h2 { margin: 0; font-size: 1.1rem; color: #2c3e50; }
+.role-badge { padding: 3px 8px; border-radius: 12px; font-size: 0.65rem; color: white; font-weight: bold; text-transform: uppercase; display: inline-block; margin-top: 2px; }
+.role-badge.green_guardian { background: #27ae60; } .role-badge.city_manager { background: #8e44ad; } .role-badge.public_monitor { background: #95a5a6; }
+.xp-header { display: flex; justify-content: space-between; font-size: 0.8rem; color: #7f8c8d; margin-bottom: 4px; }
+.xp-bar { width: 100%; height: 6px; background: #eee; border-radius: 3px; overflow: hidden; }
+.xp-fill { height: 100%; background: #f1c40f; transition: width 0.5s ease-out; }
+
+/* Weather Card Styles */
+.weather-card { display: flex; align-items: center; gap: 15px; color: white; border: none; justify-content: center; min-height: 80px;}
+.weather-card.sunny { background: linear-gradient(135deg, #f2994a, #f2c94c); }
+.weather-card.cloudy { background: linear-gradient(135deg, #bdc3c7, #2c3e50); }
+.weather-card.rainy { background: linear-gradient(135deg, #373b44, #4286f4); }
+.weather-icon { font-size: 2.5rem; }
+.weather-info h3 { margin: 0; font-size: 1.1rem; }
+.weather-info small { opacity: 0.9; }
+
+/* Badge Container */
+.badges-container {
+  display: flex;
+}
+/* Questo forza il componente BadgeList a riempire l'altezza della pila a sinistra */
+.full-height-badge {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+/* GRIGLIA ALBERI */
+.separator { text-align: center; margin: 30px 0 20px 0; color: #95a5a6; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 2px; font-weight: bold; }
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 20px; }
+.card { background: white; padding: 20px; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); border-top: 4px solid #ccc; transition: transform 0.2s; position: relative; }
+.card:hover { transform: translateY(-3px); }
+.card.healthy { border-top-color: #2ecc71; } .card.thirsty { border-top-color: #f39c12; } .card.critical { border-top-color: #e74c3c; }
+.card-header h3 { margin: 0 0 10px 0; font-size: 1rem; color: #34495e; }
+.progress-bar { width: 100%; height: 8px; background: #ecf0f1; border-radius: 4px; overflow: hidden; margin: 10px 0; }
+.fill { height: 100%; background: #3498db; transition: width 0.4s; }
+.actions { display: flex; gap: 8px; margin-top: 15px; }
+button { width: 100%; padding: 8px; border: none; background: #2ecc71; color: white; border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 0.85rem; }
 .btn-ai { background: #8e44ad; width: 40%; }
 .btn-disabled { background-color: #bdc3c7 !important; cursor: not-allowed; }
-.debug-controls { margin-top: 15px; padding-top: 10px; border-top: 1px dashed #ccc; text-align: center; }
-.debug-buttons { display: flex; gap: 5px; justify-content: center; margin-top: 5px; }
-.btn-debug { padding: 5px 10px; }
-.card.healthy { border-left-color: #2ecc71; }
-.card.thirsty { border-left-color: #f39c12; }
-.card.critical { border-left-color: #e74c3c; }
-.progress-bar { width: 100%; height: 10px; background: #eee; border-radius: 5px; overflow: hidden; margin: 10px 0; }
-.fill { height: 100%; background: #3498db; transition: width 0.3s; }
-.ai-modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 2000; display: flex; justify-content: center; align-items: center; padding: 20px; }
-.ai-modal { background: white; width: 100%; max-width: 400px; border-radius: 15px; overflow: hidden; box-shadow: 0 10px 30px rgba(0,0,0,0.2); }
-.ai-header { background: #8e44ad; color: white; padding: 15px; display: flex; justify-content: space-between; }
-.ai-body { padding: 20px; color: #333; line-height: 1.5; }
-.close-btn { background: none; border: none; color: white; font-size: 1.2rem; cursor: pointer; width: auto; padding: 0; }
-.level-up-modal { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: #f1c40f; color: white; padding: 20px; border-radius: 30px; font-size: 2rem; z-index: 3000; font-weight: bold; text-align: center; width: 80%; }
+.debug-controls { margin-top: 10px; border-top: 1px dashed #eee; padding-top: 5px; text-align: center; }
+.debug-buttons { display: flex; justify-content: center; gap: 5px; } .btn-debug { padding: 2px 8px; font-size: 0.7rem; }
 
-@media (max-width: 768px) {
-  .container { padding: 10px; }
-  .main-title { font-size: 1.8rem; }
-  .dashboard-top-flex { flex-direction: column; gap: 15px; }
-  .top-left-group { flex-direction: column; min-width: 0; }
-  .top-right-group { width: 100%; min-width: 0; }
-  .grid { grid-template-columns: 1fr; gap: 15px; }
+/* MODALI */
+.ai-modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 2000; display: flex; justify-content: center; align-items: center; padding: 20px; backdrop-filter: blur(2px); }
+.ai-modal { background: white; width: 100%; max-width: 400px; border-radius: 15px; overflow: hidden; box-shadow: 0 20px 40px rgba(0,0,0,0.2); animation: slideUp 0.3s ease; }
+.ai-header { background: #8e44ad; color: white; padding: 15px 20px; display: flex; justify-content: space-between; align-items: center; }
+.ai-body { padding: 25px; color: #333; line-height: 1.6; font-size: 1.05rem; }
+.close-btn { background: rgba(255,255,255,0.2); border: none; color: white; width: 30px; height: 30px; border-radius: 50%; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: background 0.2s; } .close-btn:hover { background: rgba(255,255,255,0.4); }
+.badge-modal { position: fixed; top: 30%; left: 50%; transform: translate(-50%, -50%); background: white; border: 4px solid #f1c40f; color: #2c3e50; padding: 30px; text-align: center; border-radius: 20px; box-shadow: 0 20px 60px rgba(0,0,0,0.3); z-index: 4000; animation: popIn 0.5s; min-width: 300px; }
+.badge-modal .badge-icon { font-size: 5rem; margin-bottom: 15px; display: block; }
+.badge-modal h3 { margin: 0; color: #f39c12; font-size: 1.6rem; text-transform: uppercase; }
+.level-up-modal { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: #f1c40f; color: white; padding: 20px 40px; border-radius: 50px; font-size: 2rem; z-index: 3000; font-weight: 900; box-shadow: 0 10px 30px rgba(241, 196, 15, 0.6); animation: popIn 0.5s; }
+
+@keyframes popIn { from { transform: translate(-50%, -50%) scale(0.8); opacity: 0; } to { transform: translate(-50%, -50%) scale(1); opacity: 1; }}
+@keyframes slideUp { from { transform: translateY(30px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+
+/* RESPONSIVE MOBILE */
+@media (max-width: 992px) {
+  .main-layout { grid-template-columns: 1fr; } /* Colonna singola su tablet/mobile */
+  .sidebar-column { display: none; } /* Nascondiamo la classifica su mobile o la mettiamo sotto se preferisci */
+  .dashboard-top-row { grid-template-columns: 1fr; }
 }
 </style>

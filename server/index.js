@@ -52,25 +52,72 @@ io.on('connection', (socket) => {
 
   socket.on('water_tree', async ({ treeId, userId }) => {
     try {
+      // 1. Prendi l'albero PRIMA di modificarlo (per vedere se era critico)
       const tree = await Tree.findById(treeId);
       if (!tree) return;
+
+      const wasCritical = tree.status === 'critical';
+
+      // 2. Modifica Albero (Logica esistente)
       tree.waterLevel = Math.min(tree.waterLevel + 20, 100);
-      tree.status = calculateStatus(tree.waterLevel);
+      tree.status = calculateStatus(tree.waterLevel); // Assicurati di avere la funzione calculateStatus definita o usa la logica if/else
       await tree.save();
       io.emit('tree_updated', tree);
 
+      // 3. GAMIFICATION & BADGES (Solo se utente reale)
       if (userId && userId !== 'guest') {
-        await ActionLog.create({ user: userId, tree: treeId, actionType: 'water', details: `Livello portato a ${tree.waterLevel}%` });
+        // Log azione
+        await ActionLog.create({ user: userId, tree: treeId, actionType: 'water', details: `Livello a ${tree.waterLevel}%` });
+        
         const user = await User.findById(userId);
         if (user) {
+          // A. Aggiorna Statistiche
           user.xp += 15;
+          if (!user.stats) user.stats = { waterCount: 0, savedTrees: 0 }; // Init safe
+          user.stats.waterCount += 1;
+          
+          if (wasCritical && tree.status !== 'critical') {
+            user.stats.savedTrees += 1;
+          }
+
+          // B. Level Up Check
           const newLevel = Math.floor(user.xp / 100) + 1;
           if (newLevel > user.level) {
             user.level = newLevel;
             io.emit('level_up', { username: user.username, level: user.level });
           }
+
+          // C. BADGE CHECK SYSTEM 🏆
+          const newBadges = [];
+
+          // Badge 1: Prima Goccia (Prima innaffiata)
+          if (user.stats.waterCount === 1 && !user.badges.includes('FIRST_DROP')) {
+            user.badges.push('FIRST_DROP');
+            newBadges.push({ id: 'FIRST_DROP', name: '💧 Prima Goccia', desc: 'Hai innaffiato il tuo primo albero!' });
+          }
+
+          // Badge 2: Veterano (20 innaffiature)
+          if (user.stats.waterCount >= 20 && !user.badges.includes('VETERAN')) {
+            user.badges.push('VETERAN');
+            newBadges.push({ id: 'VETERAN', name: '🎖️ Veterano', desc: 'Hai curato la foresta 20 volte.' });
+          }
+
+          // Badge 3: Il Soccorritore (Salvato un albero critico)
+          if (wasCritical && tree.status !== 'critical' && !user.badges.includes('SAVER')) {
+            user.badges.push('SAVER');
+            newBadges.push({ id: 'SAVER', name: '🚑 Soccorritore', desc: 'Hai salvato un albero in fin di vita!' });
+          }
+
           await user.save();
+          
+          // Notifica l'utente aggiornato
           io.emit('user_updated', user);
+
+          // Se ci sono badge nuovi, manda notifica speciale
+          newBadges.forEach(badge => {
+            // Mandiamo l'evento solo a questo socket (o a tutti, per gloria)
+            io.emit('badge_unlocked', { username: user.username, badge });
+          });
         }
       }
     } catch (e) { console.error(e); }
