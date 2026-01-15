@@ -27,12 +27,10 @@ const chartOptions = {
         color: '#2c3e50', 
         font: { size: 12, family: "'Inter', sans-serif" },
         
-        // --- STILE FLAT ---
-        usePointStyle: true,      // Usa forme geometriche invece di rettangoli larghi
-        pointStyle: 'rectRounded', // Usa un quadrato arrotondato (molto moderno)
-        // Puoi usare anche 'circle', 'rect', 'triangle'
+        usePointStyle: true,      
+        pointStyle: 'rectRounded', 
         
-        padding: 20 // Spazio tra le voci
+        padding: 20 
       } 
     },
     tooltip: {

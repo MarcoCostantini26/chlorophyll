@@ -39,7 +39,18 @@ const getColor = (status) => {
 </template>
 
 <style scoped>
-.map-container { height: 500px; width: 100%; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 15px rgba(0,0,0,0.1); margin-bottom: 30px; border: 4px solid #fff; z-index: 1; }
+.map-container {
+  height: 500px;
+  width: 100%;
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+  /* RIMOSSO margin-bottom */
+  border: 4px solid #fff;
+  z-index: 1; 
+  box-sizing: border-box;
+}
+
 .popup-content { text-align: center; min-width: 160px; overflow: hidden; }
 .popup-header { height: 6px; width: 120%; margin: -15px -20px 10px -20px; }
 .popup-content h3 { margin: 0; color: #2c3e50; font-size: 1.1rem; font-weight: 800; }
@@ -51,7 +62,6 @@ const getColor = (status) => {
 .popup-btn:hover:not(:disabled) { background: #27ae60; }
 .popup-btn:disabled { background: #bdc3c7; cursor: not-allowed; }
 
-/* --- 📱 MOBILE RESPONSIVE --- */
 @media (max-width: 768px) {
   .map-container { height: 350px; }
 }
