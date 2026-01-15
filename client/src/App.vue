@@ -168,17 +168,37 @@ onMounted(() => {
 .btn-notif { background: #f39c12; color: white; border: none; padding: 8px 15px; border-radius: 6px; cursor: pointer; font-weight: bold; }
 
 /* LAYOUT PRINCIPALE */
-.main-layout { display: grid; grid-template-columns: 3fr 1fr; gap: 30px; align-items: start; }
+.main-layout { 
+  display: grid; 
+  grid-template-columns: 3fr 1fr; /* 75% Sinistra, 25% Destra */
+  gap: 30px;
+  /* STRETCH: Forza la colonna destra ad essere alta quanto la sinistra */
+  align-items: stretch; 
+  position: relative;
+}
+
 .content-column { display: flex; flex-direction: column; gap: 30px; width: 100%; }
-.sidebar-column { min-width: 280px; }
-.sticky-sidebar { position: sticky; top: 20px; }
+
+/* SIDEBAR FISSA (STICKY) */
+.sidebar-column { 
+  min-width: 280px; 
+  height: 100%; /* Occupa tutta l'altezza fornita dallo stretch */
+}
+
+.sticky-sidebar {
+  position: -webkit-sticky; /* Safari */
+  position: sticky;
+  top: 20px; /* Si ferma a 20px dal bordo alto */
+  z-index: 900;
+  height: fit-content; /* L'altezza è solo quella del contenuto */
+}
 
 /* BLOCCHI CONTENUTO */
 .top-row-grid { display: grid; grid-template-columns: 1fr 1.5fr; gap: 20px; width: 100%; }
 .full-width-block { width: 100%; }
 
 /* INFO STACK (USER + METEO) - COMPATTO */
-.info-stack { display: flex; flex-direction: column; gap: 10px; /* Gap ridotto per risparmiare altezza */ }
+.info-stack { display: flex; flex-direction: column; gap: 10px; }
 .dashboard-card { background: white; border-radius: 12px; padding: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.03); border: 1px solid #f0f2f5; flex: 1; }
 
 /* User Card Compatta */

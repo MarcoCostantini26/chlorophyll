@@ -4,13 +4,14 @@ const http = require('http');
 const { Server } = require('socket.io');
 const mongoose = require('mongoose');
 const cors = require('cors');
-
-// 1. IMPORTIAMO GROQ
 const Groq = require('groq-sdk');
 
+// Import dei Modelli
 const Tree = require('./models/Tree');
 const User = require('./models/User');
 const ActionLog = require('./models/ActionLog');
+
+// Import del servizio Meteo (assicurati di avere il file weatherService.js)
 const { startWeatherSimulation } = require('./weatherService');
 
 const app = express();
@@ -20,109 +21,104 @@ const PORT = process.env.PORT || 3000;
 const MONGO_URI = process.env.MONGO_URI;
 const CLIENT_URL = process.env.CLIENT_URL || "http://localhost:5173";
 
-// 2. CONFIGURAZIONE GROQ
+// --- CONFIGURAZIONE AI (GROQ) ---
 let groq = null;
 if (process.env.GROQ_API_KEY) {
   groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
   console.log("🧠 AI Dr. Chlorophyll: ATTIVATA (Groq LPU)");
 } else {
-  console.log("🧠 AI Dr. Chlorophyll: MODALITÀ BACKUP (Chiave mancante)");
+  console.log("⚠️ AI Dr. Chlorophyll: MODALITÀ BACKUP (Chiave mancante)");
 }
 
+// --- MIDDLEWARE ---
 app.use(cors({ origin: CLIENT_URL, credentials: true }));
 app.use(express.json());
 
+// --- DATABASE ---
 mongoose.connect(MONGO_URI)
   .then(() => console.log('🍃 MongoDB Connesso'))
   .catch(err => console.error('❌ Errore MongoDB:', err));
 
-const io = new Server(server, { cors: { origin: CLIENT_URL, methods: ["GET", "POST"] } });
+// --- SOCKET.IO ---
+const io = new Server(server, { 
+  cors: { origin: CLIENT_URL, methods: ["GET", "POST", "PUT"] } 
+});
 
+// Funzione Helper per calcolare lo stato dell'albero
 const calculateStatus = (level) => {
   if (level >= 70) return 'healthy';
   if (level > 30) return 'thirsty';
   return 'critical';
 };
 
+// Avvia la simulazione del meteo
 startWeatherSimulation(io);
 
-// --- WEBSOCKET ---
+// Gestione Eventi Socket
 io.on('connection', (socket) => {
   console.log(`🔌 Utente connesso: ${socket.id}`);
 
+  // Azione: Innaffia Albero
   socket.on('water_tree', async ({ treeId, userId }) => {
     try {
-      // 1. Prendi l'albero PRIMA di modificarlo (per vedere se era critico)
       const tree = await Tree.findById(treeId);
       if (!tree) return;
-
-      const wasCritical = tree.status === 'critical';
-
-      // 2. Modifica Albero (Logica esistente)
+      
+      // Logica Acqua
       tree.waterLevel = Math.min(tree.waterLevel + 20, 100);
-      tree.status = calculateStatus(tree.waterLevel); // Assicurati di avere la funzione calculateStatus definita o usa la logica if/else
+      tree.status = calculateStatus(tree.waterLevel);
       await tree.save();
+      
+      // Avvisa tutti i client
       io.emit('tree_updated', tree);
 
-      // 3. GAMIFICATION & BADGES (Solo se utente reale)
+      // Logica XP Utente
       if (userId && userId !== 'guest') {
-        // Log azione
-        await ActionLog.create({ user: userId, tree: treeId, actionType: 'water', details: `Livello a ${tree.waterLevel}%` });
-        
+        // Crea Log
+        await ActionLog.create({ 
+          user: userId, 
+          tree: treeId, 
+          actionType: 'water', 
+          details: `Livello portato a ${tree.waterLevel}%` 
+        });
+
+        // Aggiorna Utente
         const user = await User.findById(userId);
         if (user) {
-          // A. Aggiorna Statistiche
           user.xp += 15;
-          if (!user.stats) user.stats = { waterCount: 0, savedTrees: 0 }; // Init safe
-          user.stats.waterCount += 1;
-          
-          if (wasCritical && tree.status !== 'critical') {
-            user.stats.savedTrees += 1;
-          }
-
-          // B. Level Up Check
           const newLevel = Math.floor(user.xp / 100) + 1;
+          
           if (newLevel > user.level) {
             user.level = newLevel;
             io.emit('level_up', { username: user.username, level: user.level });
+            
+            // Sblocca Badge "GREEN_THUMB" al livello 5
+            if (newLevel === 5 && !user.badges.includes('GREEN_THUMB')) {
+              user.badges.push('GREEN_THUMB');
+              io.emit('badge_unlocked', { 
+                username: user.username, 
+                badge: { name: 'Pollice Verde', desc: 'Raggiunto il livello 5!' } 
+              });
+            }
           }
 
-          // C. BADGE CHECK SYSTEM 🏆
-          const newBadges = [];
-
-          // Badge 1: Prima Goccia (Prima innaffiata)
-          if (user.stats.waterCount === 1 && !user.badges.includes('FIRST_DROP')) {
-            user.badges.push('FIRST_DROP');
-            newBadges.push({ id: 'FIRST_DROP', name: '💧 Prima Goccia', desc: 'Hai innaffiato il tuo primo albero!' });
-          }
-
-          // Badge 2: Veterano (20 innaffiature)
-          if (user.stats.waterCount >= 20 && !user.badges.includes('VETERAN')) {
-            user.badges.push('VETERAN');
-            newBadges.push({ id: 'VETERAN', name: '🎖️ Veterano', desc: 'Hai curato la foresta 20 volte.' });
-          }
-
-          // Badge 3: Il Soccorritore (Salvato un albero critico)
-          if (wasCritical && tree.status !== 'critical' && !user.badges.includes('SAVER')) {
-            user.badges.push('SAVER');
-            newBadges.push({ id: 'SAVER', name: '🚑 Soccorritore', desc: 'Hai salvato un albero in fin di vita!' });
+          // Badge "FIRST_DROP" (Prima Innaffiata)
+          if (!user.badges.includes('FIRST_DROP')) {
+             user.badges.push('FIRST_DROP');
+             io.emit('badge_unlocked', {
+               username: user.username,
+               badge: { name: 'Prima Goccia', desc: 'Hai innaffiato il tuo primo albero.' }
+             });
           }
 
           await user.save();
-          
-          // Notifica l'utente aggiornato
           io.emit('user_updated', user);
-
-          // Se ci sono badge nuovi, manda notifica speciale
-          newBadges.forEach(badge => {
-            // Mandiamo l'evento solo a questo socket (o a tutti, per gloria)
-            io.emit('badge_unlocked', { username: user.username, badge });
-          });
         }
       }
     } catch (e) { console.error(e); }
   });
 
+  // Azione Admin: Forza Acqua
   socket.on('admin_force_water', async ({ treeId, amount }) => {
     try {
       const tree = await Tree.findById(treeId);
@@ -138,13 +134,15 @@ io.on('connection', (socket) => {
   });
 });
 
-// --- API REST ---
+// --- API REST ROUTES ---
 
+// 1. Ottieni Alberi
 app.get('/api/trees', async (req, res) => {
   const trees = await Tree.find();
   res.json(trees);
 });
 
+// 2. Login Utente
 app.post('/api/users/login', async (req, res) => {
   const { username } = req.body;
   const user = await User.findOne({ username: { $regex: new RegExp(`^${username}$`, 'i') } });
@@ -152,57 +150,58 @@ app.post('/api/users/login', async (req, res) => {
   res.json(user);
 });
 
-// AGGIORNAMENTO PROFILO UTENTE
+// 3. Aggiorna Utente (Avatar, ecc.) [NUOVO]
 app.put('/api/users/:id', async (req, res) => {
   try {
-    const { username, avatar } = req.body;
-    const userId = req.params.id;
+    const { id } = req.params;
+    const { avatar } = req.body;
 
-    // Validazione base
-    if (!username || username.length < 3) {
-      return res.status(400).json({ error: "Il nome deve avere almeno 3 caratteri." });
-    }
-
-    // Aggiorna l'utente
-    // { new: true } serve a farci restituire l'oggetto aggiornato
     const updatedUser = await User.findByIdAndUpdate(
-      userId, 
-      { username, avatar }, // Se non avevi il campo 'avatar' nel modello, Mongo lo aggiungerà se lo schema non è strict, o lo ignorerà.
+      id, 
+      { avatar: avatar }, 
       { new: true } 
     );
 
     if (!updatedUser) return res.status(404).json({ error: "Utente non trovato" });
 
-    // Aggiorniamo tutti i client connessi che questo utente ha cambiato nome/avatar
+    // Avvisa i socket che l'utente è cambiato
     io.emit('user_updated', updatedUser);
 
     res.json(updatedUser);
-  } catch (error) {
-    res.status(500).json({ error: "Errore durante l'aggiornamento." });
+  } catch (e) {
+    console.error("Errore update user:", e);
+    res.status(500).json({ error: "Errore server" });
   }
 });
 
+// 4. Classifica
 app.get('/api/users/leaderboard', async (req, res) => {
   try {
-    const topUsers = await User.find({ role: 'green_guardian' }).sort({ xp: -1 }).limit(3).select('username xp level');
+    const topUsers = await User.find({ role: 'green_guardian' })
+                               .sort({ xp: -1 })
+                               .limit(3)
+                               .select('username xp level avatar'); 
     res.json(topUsers);
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-// --- 3. INTEGRAZIONE AI (GROQ) ---
+// 5. Consulenza AI (Dr. Chlorophyll)
 app.post('/api/ai/consult', async (req, res) => {
   try {
     const { treeId } = req.body;
     const tree = await Tree.findById(treeId);
     if (!tree) return res.status(404).json({ error: "Albero non trovato" });
 
-    // A. SE GROQ È ATTIVO
     if (groq) {
       try {
-        const prompt = `Sei il Dr. Chlorophyll, un botanico sarcastico e divertente. 
-        Analizza questo albero: ${tree.name} (${tree.species}), Acqua: ${tree.waterLevel}%, Stato: ${tree.status}.
-        Dammi un consiglio brevissimo (max 20 parole) con emoji.
-        poi fammi una breve descrizione del tipo di albero`;
+        const prompt = `Sei il Dr. Chlorophyll, un botanico saggio e un po' sarcastico. 
+        Analizza questo albero:
+        - Nome: ${tree.name}
+        - Specie: ${tree.species}
+        - Acqua: ${tree.waterLevel}%
+        - Stato: ${tree.status}
+        
+        Dai un consiglio brevissimo (max 20 parole) con una emoji finale.`;
 
         const chatCompletion = await groq.chat.completions.create({
           "messages": [{ "role": "user", "content": prompt }],
@@ -215,23 +214,22 @@ app.post('/api/ai/consult', async (req, res) => {
         return res.json({ message: aiMessage });
 
       } catch (aiError) {
-        console.error("Errore Groq (Fallback):", aiError.message);
+        console.error("Errore Groq:", aiError.message);
       }
     }
 
-    // B. BACKUP SYSTEM
+    // Fallback se AI non va o manca chiave
     let backupMsg = "";
-    if (tree.waterLevel < 30) backupMsg = `⚠️ [BACKUP] ${tree.species} sta morendo (${tree.waterLevel}%). Acqua!`;
-    else if (tree.waterLevel < 70) backupMsg = `ℹ️ [BACKUP] ${tree.species} ha sete (${tree.waterLevel}%).`;
-    else backupMsg = `✅ [BACKUP] ${tree.species} sta una meraviglia (${tree.waterLevel}%).`;
+    if (tree.waterLevel < 30) backupMsg = `⚠️ ${tree.name} sta morendo di sete! Dagli acqua subito!`;
+    else if (tree.waterLevel < 70) backupMsg = `ℹ️ ${tree.name} gradirebbe un po' d'acqua.`;
+    else backupMsg = `✅ ${tree.name} è in ottima salute. Ottimo lavoro!`;
 
-    setTimeout(() => res.json({ message: backupMsg }), 1000);
+    res.json({ message: backupMsg });
 
-  } catch (error) {
-    res.status(500).json({ error: "Errore Dr. Chlorophyll" });
-  }
+  } catch (error) { res.status(500).json({ error: "Errore Dr. Chlorophyll" }); }
 });
 
+// 6. Admin Stats
 app.get('/api/admin/stats', async (req, res) => {
   try {
     const allTrees = await Tree.find();
@@ -239,16 +237,24 @@ app.get('/api/admin/stats', async (req, res) => {
     const criticalTrees = allTrees.filter(t => t.status === 'critical').length;
     const healthyTrees = allTrees.filter(t => t.status === 'healthy').length;
     const thirstyTrees = allTrees.filter(t => t.status === 'thirsty').length;
+    
     let sumWater = 0;
     allTrees.forEach(t => { sumWater += (typeof t.waterLevel === 'number' ? t.waterLevel : 0); });
     const avgWater = totalTrees > 0 ? Math.round(sumWater / totalTrees) : 0;
+    
     res.json({ totalTrees, criticalTrees, healthyTrees, thirstyTrees, avgWater });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
+// 7. Admin Logs
 app.get('/api/admin/logs', async (req, res) => {
-  const logs = await ActionLog.find().sort({ timestamp: -1 }).limit(10).populate('user', 'username').populate('tree', 'name');
+  const logs = await ActionLog.find()
+                              .sort({ timestamp: -1 })
+                              .limit(10)
+                              .populate('user', 'username')
+                              .populate('tree', 'name');
   res.json(logs);
 });
 
+// --- AVVIO SERVER ---
 server.listen(PORT, () => console.log(`🚀 Server on port ${PORT}`));

@@ -42,7 +42,7 @@ const saveProfile = async () => {
 <template>
   <div class="profile-container">
     
-    <button class="btn-back" @click="$emit('back')">← Torna alla Foresta</button>
+    <button class="btn-back" @click="$emit('back')">← Torna alla Home</button>
 
     <div class="profile-card">
       <div class="card-header">
