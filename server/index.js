@@ -152,6 +152,36 @@ app.post('/api/users/login', async (req, res) => {
   res.json(user);
 });
 
+// AGGIORNAMENTO PROFILO UTENTE
+app.put('/api/users/:id', async (req, res) => {
+  try {
+    const { username, avatar } = req.body;
+    const userId = req.params.id;
+
+    // Validazione base
+    if (!username || username.length < 3) {
+      return res.status(400).json({ error: "Il nome deve avere almeno 3 caratteri." });
+    }
+
+    // Aggiorna l'utente
+    // { new: true } serve a farci restituire l'oggetto aggiornato
+    const updatedUser = await User.findByIdAndUpdate(
+      userId, 
+      { username, avatar }, // Se non avevi il campo 'avatar' nel modello, Mongo lo aggiungerà se lo schema non è strict, o lo ignorerà.
+      { new: true } 
+    );
+
+    if (!updatedUser) return res.status(404).json({ error: "Utente non trovato" });
+
+    // Aggiorniamo tutti i client connessi che questo utente ha cambiato nome/avatar
+    io.emit('user_updated', updatedUser);
+
+    res.json(updatedUser);
+  } catch (error) {
+    res.status(500).json({ error: "Errore durante l'aggiornamento." });
+  }
+});
+
 app.get('/api/users/leaderboard', async (req, res) => {
   try {
     const topUsers = await User.find({ role: 'green_guardian' }).sort({ xp: -1 }).limit(3).select('username xp level');
