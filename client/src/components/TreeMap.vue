@@ -45,7 +45,7 @@ const getColor = (status) => {
   border-radius: 12px;
   overflow: hidden;
   box-shadow: 0 4px 15px rgba(0,0,0,0.1);
-  /* RIMOSSO margin-bottom */
+  /* NO margin-bottom */
   border: 4px solid #fff;
   z-index: 1; 
   box-sizing: border-box;

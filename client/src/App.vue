@@ -167,49 +167,28 @@ onMounted(() => {
 .online { background: #2ecc71; } .offline { background: #e74c3c; }
 .btn-notif { background: #f39c12; color: white; border: none; padding: 8px 15px; border-radius: 6px; cursor: pointer; font-weight: bold; }
 
-/* --- STRUTTURA LAYOUT AVANZATA (FIX ALLINEAMENTO) --- */
-
-.main-layout {
-  display: grid;
-  grid-template-columns: 3fr 1fr; /* 75% Sinistra, 25% Destra */
-  gap: 30px;
-  align-items: start;
-}
-
-/* Colonna Contenuti (Gestisce lo spazio verticale uniforme) */
-.content-column {
-  display: flex;
-  flex-direction: column;
-  gap: 30px; /* Spazio costante tra Admin, Mappa, Top Row */
-  width: 100%;
-}
-
-/* Sidebar */
+/* LAYOUT PRINCIPALE */
+.main-layout { display: grid; grid-template-columns: 3fr 1fr; gap: 30px; align-items: start; }
+.content-column { display: flex; flex-direction: column; gap: 30px; width: 100%; }
 .sidebar-column { min-width: 280px; }
 .sticky-sidebar { position: sticky; top: 20px; }
 
 /* BLOCCHI CONTENUTO */
-.top-row-grid {
-  display: grid;
-  grid-template-columns: 1fr 1.5fr; /* User/Meteo sinistra, Badge destra */
-  gap: 20px;
-  width: 100%;
-}
-
+.top-row-grid { display: grid; grid-template-columns: 1fr 1.5fr; gap: 20px; width: 100%; }
 .full-width-block { width: 100%; }
 
-/* Info Stack */
-.info-stack { display: flex; flex-direction: column; gap: 20px; }
-.dashboard-card { background: white; border-radius: 12px; padding: 15px; box-shadow: 0 4px 15px rgba(0,0,0,0.03); border: 1px solid #f0f2f5; flex: 1; }
+/* INFO STACK (USER + METEO) - COMPATTO */
+.info-stack { display: flex; flex-direction: column; gap: 10px; /* Gap ridotto per risparmiare altezza */ }
+.dashboard-card { background: white; border-radius: 12px; padding: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.03); border: 1px solid #f0f2f5; flex: 1; }
 
-/* User Card Styles */
+/* User Card Compatta */
 .user-card.clickable { cursor: pointer; transition: transform 0.2s, box-shadow 0.2s; position: relative; }
 .user-card.clickable:hover { transform: translateY(-3px); box-shadow: 0 8px 20px rgba(0,0,0,0.08); border-color: #2ecc71; }
 .edit-hint { position: absolute; top: 15px; right: 15px; font-size: 0.9rem; opacity: 0; transition: opacity 0.2s; }
 .user-card.clickable:hover .edit-hint { opacity: 1; }
 
-.user-flex { display: flex; align-items: center; gap: 15px; margin-bottom: 10px; }
-.user-avatar { font-size: 2rem; background: #f0f2f5; width: 50px; height: 50px; display: flex; align-items: center; justify-content: center; border-radius: 50%; }
+.user-flex { display: flex; align-items: center; gap: 12px; margin-bottom: 5px; }
+.user-avatar { font-size: 1.8rem; width: 45px; height: 45px; background: #f0f2f5; display: flex; align-items: center; justify-content: center; border-radius: 50%; }
 .user-details h2 { margin: 0; font-size: 1.1rem; color: #2c3e50; }
 .role-badge { padding: 3px 8px; border-radius: 12px; font-size: 0.65rem; color: white; font-weight: bold; text-transform: uppercase; display: inline-block; margin-top: 2px; }
 .role-badge.green_guardian { background: #27ae60; } .role-badge.city_manager { background: #8e44ad; } .role-badge.public_monitor { background: #95a5a6; }
@@ -217,12 +196,12 @@ onMounted(() => {
 .xp-bar { width: 100%; height: 6px; background: #eee; border-radius: 3px; overflow: hidden; }
 .xp-fill { height: 100%; background: #f1c40f; transition: width 0.5s ease-out; }
 
-/* Weather Card */
-.weather-card { display: flex; align-items: center; gap: 15px; color: white; border: none; justify-content: center; min-height: 80px;}
+/* Weather Card Compatta */
+.weather-card { display: flex; align-items: center; gap: 15px; color: white; border: none; justify-content: center; min-height: 70px; }
 .weather-card.sunny { background: linear-gradient(135deg, #f2994a, #f2c94c); }
 .weather-card.cloudy { background: linear-gradient(135deg, #bdc3c7, #2c3e50); }
 .weather-card.rainy { background: linear-gradient(135deg, #373b44, #4286f4); }
-.weather-icon { font-size: 2.5rem; }
+.weather-icon { font-size: 2.2rem; }
 .weather-info h3 { margin: 0; font-size: 1.1rem; }
 .weather-info small { opacity: 0.9; }
 

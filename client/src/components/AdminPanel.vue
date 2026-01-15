@@ -49,7 +49,7 @@ onUnmounted(() => { if (intervalId) clearInterval(intervalId); });
 <style scoped>
 .admin-dashboard {
   background: white; color: #2c3e50; padding: 20px; border-radius: 12px;
-  /* RIMOSSO margin-bottom */
+  /* NO margin-bottom */
   border: 2px solid #8e44ad;
   box-shadow: 0 5px 15px rgba(142, 68, 173, 0.1);
   width: 100%;
