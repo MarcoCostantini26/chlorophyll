@@ -199,4 +199,36 @@ app.get('/api/admin/logs', async (req, res) => {
   } catch (e) { res.status(500).json({ error: "Errore log" }); }
 });
 
+// 8. Adotta o Abbandona un Albero
+app.post('/api/users/adopt', async (req, res) => {
+  try {
+    const { userId, treeId } = req.body;
+    const user = await User.findById(userId);
+    
+    if (!user) return res.status(404).json({ error: "Utente non trovato" });
+
+    // Inizializza l'array se manca
+    if (!user.adoptedTrees) user.adoptedTrees = [];
+
+    // Usiamo adoptedTrees (CamelCase)
+    const index = user.adoptedTrees.indexOf(treeId);
+    
+    if (index > -1) {
+      user.adoptedTrees.splice(index, 1); // Rimuovi
+    } else {
+      user.adoptedTrees.push(treeId); // Aggiungi
+    }
+
+    user.markModified('adoptedTrees'); // Segnala a Mongo che l'array è cambiato
+    await user.save();
+    
+    io.emit('user_updated', user);
+    
+    res.json(user);
+  } catch (e) {
+    console.error("Errore adozione:", e);
+    res.status(500).json({ error: "Errore adozione" });
+  }
+});
+
 server.listen(PORT, () => console.log(`🚀 Server avviato sulla porta ${PORT}`));

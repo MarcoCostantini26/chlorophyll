@@ -7,6 +7,7 @@ import AdminPanel from './components/AdminPanel.vue';
 import Leaderboard from './components/Leaderboard.vue';
 import BadgeList from './components/BadgeList.vue';
 import UserProfile from './components/UserProfile.vue';
+import MyForest from './components/MyForest.vue'; 
 
 const socket = io('http://localhost:3000');
 
@@ -16,6 +17,7 @@ const trees = ref([]);
 const currentUser = ref(null);
 const isConnected = ref(false);
 const currentWeather = ref('sunny');
+const sidebarTab = ref('leaderboard'); // 'leaderboard' o 'myforest'
 
 // --- MODALI ---
 const showLevelUp = ref(false);
@@ -30,6 +32,13 @@ const notificationPermission = ref(Notification.permission);
 const canInteract = computed(() => currentUser.value && (currentUser.value.role === 'green_guardian' || currentUser.value.role === 'city_manager'));
 const isAdmin = computed(() => currentUser.value && currentUser.value.role === 'city_manager');
 
+// Filtra gli alberi adottati (usando adoptedTrees CamelCase)
+const myAdoptedTrees = computed(() => {
+  if (!currentUser.value || !trees.value) return [];
+  const adoptedIds = currentUser.value.adoptedTrees || [];
+  return trees.value.filter(t => adoptedIds.includes(t._id));
+});
+
 // --- FUNZIONI ---
 const handleLoginSuccess = (user) => { currentUser.value = user; if (Notification.permission === 'default') requestNotificationPermission(); };
 const handleGuestAccess = () => currentUser.value = { _id: 'guest', username: 'Public Monitor', role: 'public_monitor', xp: 0, level: 0 };
@@ -39,10 +48,49 @@ const goToProfile = () => { if (currentUser.value && currentUser.value.role !== 
 
 const requestNotificationPermission = async () => { const p = await Notification.requestPermission(); notificationPermission.value = p; };
 const sendNotification = (t, b) => { if (notificationPermission.value === 'granted') new Notification(t, { body: b }); };
-const fetchTrees = async () => { const res = await fetch('http://localhost:3000/api/trees'); trees.value = await res.json(); };
-const askDrChlorophyll = async (tree) => { showAiModal.value = true; isAiThinking.value = true; aiResponse.value = ''; try { const res = await fetch('http://localhost:3000/api/ai/consult', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ treeId: tree._id }) }); const data = await res.json(); aiResponse.value = data.message; } catch (e) { aiResponse.value = "Errore AI"; } finally { isAiThinking.value = false; } };
-const waterTree = (treeId) => { if (!canInteract.value) return; socket.emit('water_tree', { treeId, userId: currentUser.value._id }); };
+
+const fetchTrees = async () => { 
+  try {
+    const res = await fetch('http://localhost:3000/api/trees'); 
+    trees.value = await res.json(); 
+  } catch (e) { console.error("Errore fetch alberi", e); }
+};
+
+const askDrChlorophyll = async (tree) => { 
+  showAiModal.value = true; 
+  isAiThinking.value = true; 
+  aiResponse.value = ''; 
+  try { 
+    const res = await fetch('http://localhost:3000/api/ai/consult', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ treeId: tree._id }) }); 
+    const data = await res.json(); 
+    aiResponse.value = data.message; 
+  } catch (e) { aiResponse.value = "Errore AI"; } 
+  finally { isAiThinking.value = false; } 
+};
+
+// Funzione Innaffia SEMPLIFICATA (Niente GPS)
+const waterTree = (treeId) => { 
+  if (!canInteract.value) return; 
+  // Manda subito il comando senza chiedere posizione
+  socket.emit('water_tree', { treeId, userId: currentUser.value._id }); 
+};
+
 const forceWater = (treeId, amount) => { socket.emit('admin_force_water', { treeId, amount }); };
+
+const toggleAdopt = async (treeId) => {
+  if (!currentUser.value) return;
+  try {
+    await fetch('http://localhost:3000/api/users/adopt', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId: currentUser.value._id, treeId })
+    });
+  } catch (e) { console.error(e); }
+};
+
+const handleFocusMap = (tree) => {
+  console.log(`Focus su: ${tree.name}`);
+};
 
 onMounted(() => {
   fetchTrees();
@@ -120,11 +168,16 @@ onMounted(() => {
         </div>
 
         <div class="section-block full-width-block">
-          <TreeMap :trees="trees" @water-action="waterTree" /> 
+          <TreeMap 
+            :trees="trees" 
+            :user="currentUser"
+            @water-action="waterTree" 
+            @adopt-action="toggleAdopt"
+          /> 
         </div>
         
         <div class="section-block">
-          <div class="separator">👇 STATO ALBERI 👇</div>
+          <div class="separator">👇 STATO FORESTA 👇</div>
           <div class="grid">
             <div v-for="tree in trees" :key="tree._id" class="card" :class="tree.status">
               <div class="card-header"><h3>{{ tree.name }}</h3></div>
@@ -141,7 +194,20 @@ onMounted(() => {
 
       <aside class="sidebar-column">
         <div class="sticky-sidebar">
-          <Leaderboard />
+          
+          <div class="sidebar-tabs">
+            <button :class="{ active: sidebarTab === 'leaderboard' }" @click="sidebarTab = 'leaderboard'">🏆 Top 5</button>
+            <button :class="{ active: sidebarTab === 'myforest' }" @click="sidebarTab = 'myforest'">🌲 I Miei Alberi</button>
+          </div>
+
+          <Leaderboard v-if="sidebarTab === 'leaderboard'" />
+          <MyForest 
+            v-if="sidebarTab === 'myforest'" 
+            :myTrees="myAdoptedTrees"
+            @water="waterTree"
+            @focus-map="handleFocusMap"
+          />
+
         </div>
       </aside>
 
@@ -170,43 +236,34 @@ onMounted(() => {
 /* LAYOUT PRINCIPALE */
 .main-layout { 
   display: grid; 
-  grid-template-columns: 3fr 1fr; /* 75% Sinistra, 25% Destra */
-  gap: 30px;
-  /* STRETCH: Forza la colonna destra ad essere alta quanto la sinistra */
+  /* FIX LAYOUT: Sinistra flessibile, Destra fissa a 350px */
+  grid-template-columns: 1fr 350px; 
+  gap: 30px; 
   align-items: stretch; 
-  position: relative;
+  position: relative; 
 }
-
 .content-column { display: flex; flex-direction: column; gap: 30px; width: 100%; }
 
 /* SIDEBAR FISSA (STICKY) */
-.sidebar-column { 
-  min-width: 280px; 
-  height: 100%; /* Occupa tutta l'altezza fornita dallo stretch */
-}
+.sidebar-column { width: 100%; height: 100%; }
+.sticky-sidebar { position: -webkit-sticky; position: sticky; top: 20px; z-index: 900; height: fit-content; }
 
-.sticky-sidebar {
-  position: -webkit-sticky; /* Safari */
-  position: sticky;
-  top: 20px; /* Si ferma a 20px dal bordo alto */
-  z-index: 900;
-  height: fit-content; /* L'altezza è solo quella del contenuto */
-}
+/* STILE TAB SIDEBAR */
+.sidebar-tabs { display: flex; gap: 5px; margin-bottom: 15px; }
+.sidebar-tabs button { flex: 1; padding: 10px; border: none; background: #ecf0f1; color: #7f8c8d; font-weight: bold; cursor: pointer; border-radius: 8px; transition: all 0.2s; }
+.sidebar-tabs button.active { background: #27ae60; color: white; box-shadow: 0 4px 10px rgba(39, 174, 96, 0.3); }
 
 /* BLOCCHI CONTENUTO */
 .top-row-grid { display: grid; grid-template-columns: 1fr 1.5fr; gap: 20px; width: 100%; }
 .full-width-block { width: 100%; }
 
-/* INFO STACK (USER + METEO) - COMPATTO */
+/* INFO STACK */
 .info-stack { display: flex; flex-direction: column; gap: 10px; }
 .dashboard-card { background: white; border-radius: 12px; padding: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.03); border: 1px solid #f0f2f5; flex: 1; }
-
-/* User Card Compatta */
 .user-card.clickable { cursor: pointer; transition: transform 0.2s, box-shadow 0.2s; position: relative; }
 .user-card.clickable:hover { transform: translateY(-3px); box-shadow: 0 8px 20px rgba(0,0,0,0.08); border-color: #2ecc71; }
 .edit-hint { position: absolute; top: 15px; right: 15px; font-size: 0.9rem; opacity: 0; transition: opacity 0.2s; }
 .user-card.clickable:hover .edit-hint { opacity: 1; }
-
 .user-flex { display: flex; align-items: center; gap: 12px; margin-bottom: 5px; }
 .user-avatar { font-size: 1.8rem; width: 45px; height: 45px; background: #f0f2f5; display: flex; align-items: center; justify-content: center; border-radius: 50%; }
 .user-details h2 { margin: 0; font-size: 1.1rem; color: #2c3e50; }
@@ -216,7 +273,7 @@ onMounted(() => {
 .xp-bar { width: 100%; height: 6px; background: #eee; border-radius: 3px; overflow: hidden; }
 .xp-fill { height: 100%; background: #f1c40f; transition: width 0.5s ease-out; }
 
-/* Weather Card Compatta */
+/* Weather Card */
 .weather-card { display: flex; align-items: center; gap: 15px; color: white; border: none; justify-content: center; min-height: 70px; }
 .weather-card.sunny { background: linear-gradient(135deg, #f2994a, #f2c94c); }
 .weather-card.cloudy { background: linear-gradient(135deg, #bdc3c7, #2c3e50); }
@@ -259,7 +316,6 @@ button { width: 100%; padding: 8px; border: none; background: #2ecc71; color: wh
 @keyframes popIn { from { transform: translate(-50%, -50%) scale(0.8); opacity: 0; } to { transform: translate(-50%, -50%) scale(1); opacity: 1; }}
 @keyframes slideUp { from { transform: translateY(30px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
 
-/* Responsive */
 @media (max-width: 900px) {
   .main-layout { grid-template-columns: 1fr; } 
   .sidebar-column { display: none; }
