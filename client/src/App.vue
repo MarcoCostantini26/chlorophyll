@@ -124,7 +124,7 @@ onMounted(() => {
         </div>
         
         <div class="section-block">
-          <div class="separator">👇 STATO FORESTA 👇</div>
+          <div class="separator">👇 STATO ALBERI 👇</div>
           <div class="grid">
             <div v-for="tree in trees" :key="tree._id" class="card" :class="tree.status">
               <div class="card-header"><h3>{{ tree.name }}</h3></div>

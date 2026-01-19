@@ -10,7 +10,7 @@ const allBadges = [
   { id: 'VETERAN', icon: '🎖️', name: 'Veterano', desc: 'La costanza è la chiave.', criteria: 'Effettua 20 innaffiature totali.' },
   { id: 'NIGHT_OWL', icon: '🌙', name: 'Guardiano Notturno', desc: 'La natura non dorme mai.', criteria: 'Innaffia un albero tra le 22:00 e le 05:00.' },
   { id: 'GREEN_THUMB', icon: '🌿', name: 'Pollice Verde', desc: 'La tua aura fa fiorire il deserto.', criteria: 'Raggiungi il Livello 5.' },
-  { id: 'ZEN_MASTER', icon: '🧘', name: 'Zen Master', desc: 'La pazienza è la virtù dei forti.', criteria: 'Mantieni la foresta sana per 24 ore.' }
+  { id: 'ZEN_MASTER', icon: '🧘', name: 'Zen Master', desc: 'La pazienza è la virtù dei forti.', criteria: 'Mantieni la vegetazione sana per 24 ore.' }
 ];
 
 const hasBadge = (badgeId) => props.user && props.user.badges && props.user.badges.includes(badgeId);

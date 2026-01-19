@@ -1,31 +1,47 @@
 const Tree = require('./models/Tree');
 
-const WEATHER_TYPES = ['sunny', 'cloudy', 'rainy'];
+// --- CONFIGURAZIONE BOLOGNA ---
+const LAT = 44.4949;
+const LON = 11.3426;
+// API Open-Meteo (Gratuita, No Key)
+const API_URL = `https://api.open-meteo.com/v1/forecast?latitude=${LAT}&longitude=${LON}&current_weather=true`;
+
+// Variabile di stato globale per il meteo
 let currentWeather = 'sunny';
 
 // --- LOGICA DELLE SOGLIE ---
-// Qui decidiamo esattamente quando cambia colore
 const calculateStatus = (level) => {
-  if (level >= 60) return 'healthy';  // Solo sopra il 60% è verde
-  if (level > 20) return 'thirsty';   // Tra 21% e 59% è giallo
-  return 'critical';                  // Sotto il 20% è rosso
+  if (level >= 60) return 'healthy';  // Verde
+  if (level > 20) return 'thirsty';   // Giallo
+  return 'critical';                  // Rosso
 };
 
 const startWeatherSimulation = (io) => {
-  console.log('🌦️ Simulazione Meteo avviata...');
+  console.log(`🌦️ Avvio Meteo Reale su BOLOGNA (Lat: ${LAT}, Lon: ${LON})`);
 
-  // Cambiamo meteo ogni 10 secondi per testare velocemente
-  setInterval(async () => {
-    
-    // 1. Decidiamo il meteo
-    const randomIndex = Math.floor(Math.random() * WEATHER_TYPES.length);
-    currentWeather = WEATHER_TYPES[randomIndex];
-    
-    // Inviamo l'aggiornamento meteo al frontend
-    io.emit('weather_update', currentWeather);
-
+  // Funzione principale che scarica il meteo e aggiorna la vegetazione
+  const updateForest = async () => {
     try {
-      // Prendiamo TUTTI gli alberi per analizzarli uno a uno
+      // 1. SCARICA IL METEO REALE
+      const response = await fetch(API_URL);
+      const data = await response.json();
+      const wmoCode = data.current_weather.weathercode;
+
+      // 2. TRADUCI IL CODICE WMO IN STATO APP
+      // 0-1: Sereno | 2-48: Nuvoloso | 51+: Pioggia/Neve
+      if (wmoCode === 0 || wmoCode === 1) {
+        currentWeather = 'sunny';
+      } else if (wmoCode >= 2 && wmoCode <= 48) {
+        currentWeather = 'cloudy';
+      } else if (wmoCode >= 51) {
+        currentWeather = 'rainy';
+      }
+
+      // 3. INVIA AGGIORNAMENTO METEO AI CLIENT COLLEGATI
+      io.emit('weather_update', currentWeather);
+      console.log(`🌍 Meteo Bologna (WMO: ${wmoCode}) -> ${currentWeather}`);
+
+      // 4. AGGIORNA GLI ALBERI IN BASE AL METEO
       const allTrees = await Tree.find();
       let treesChanged = false;
 
@@ -33,48 +49,51 @@ const startWeatherSimulation = (io) => {
         let oldStatus = tree.status;
         let oldWater = tree.waterLevel;
 
-        // --- CASO PIOGGIA 🌧️ ---
+        // --- Logica Ambientale ---
         if (currentWeather === 'rainy') {
-          // Aumenta l'acqua di 10 (senza superare 100)
+          // Se piove a Bologna, gli alberi bevono (+10%)
           tree.waterLevel = Math.min(tree.waterLevel + 10, 100);
-        } 
-        
-        // --- CASO SOLE ☀️ ---
-        else if (currentWeather === 'sunny') {
-          // Diminuisce l'acqua di 5 (senza scendere sotto 0)
+        } else if (currentWeather === 'sunny') {
+          // Se c'è il sole, evapora più in fretta (-5%)
           tree.waterLevel = Math.max(tree.waterLevel - 5, 0);
-        }
-        
-        // --- CASO NUVOLOSO ☁️ ---
-        else {
-          // Opzionale: evaporazione leggera o nulla
-          tree.waterLevel = Math.max(tree.waterLevel - 1, 0);
+        } else {
+          // Nuvoloso, evaporazione lenta (-2%)
+          tree.waterLevel = Math.max(tree.waterLevel - 2, 0);
         }
 
-        // --- RICALCOLO DELLO STATO ---
-        // Applico la funzione rigorosa scritta sopra
+        // Ricalcolo Stato (Verde/Giallo/Rosso)
         tree.status = calculateStatus(tree.waterLevel);
 
-        // Se è cambiato qualcosa (acqua o stato), salvo e segno che devo aggiornare il client
+        // Salva nel DB solo se ci sono stati cambiamenti
         if (tree.waterLevel !== oldWater || tree.status !== oldStatus) {
           await tree.save();
           treesChanged = true;
         }
       }
 
-      // Se almeno un albero è cambiato, invio la lista aggiornata a tutti
+      // Se la foresta è cambiata, aggiorna la mappa di tutti i client
       if (treesChanged) {
-        // Ricarico gli alberi freschi dal DB per sicurezza
         const updatedTrees = await Tree.find();
         io.emit('trees_refresh', updatedTrees);
-        // console.log(`🌍 Aggiornamento Foresta inviato (Meteo: ${currentWeather})`);
+        console.log(`🌲 Vegetazione aggiornata in base al meteo: ${currentWeather}`);
       }
 
     } catch (err) {
-      console.error('Errore simulazione meteo:', err);
+      console.error('❌ Errore aggiornamento meteo/alberi:', err);
     }
+  };
 
-  }, 10000); // Ogni 10 secondi
+  // Esegui subito all'avvio del server
+  updateForest();
+
+  // Esegui ogni 10 minuti (600.000 ms)
+  setInterval(updateForest, 600000); 
 };
 
-module.exports = { startWeatherSimulation };
+// --- NUOVA FUNZIONE EXPORTATA ---
+// Serve a index.js per sapere il meteo attuale quando un nuovo utente entra
+const getCurrentWeather = () => {
+  return currentWeather;
+};
+
+module.exports = { startWeatherSimulation, getCurrentWeather };
