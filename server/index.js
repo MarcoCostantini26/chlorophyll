@@ -6,6 +6,7 @@ const mongoose = require('mongoose');
 const cors = require('cors');
 const Groq = require('groq-sdk');
 
+
 // Import Modelli
 const Tree = require('./models/Tree');
 const User = require('./models/User');
@@ -197,6 +198,18 @@ app.get('/api/admin/logs', async (req, res) => {
     const logs = await ActionLog.find().sort({ timestamp: -1 }).limit(10).populate('user', 'username').populate('tree', 'name');
     res.json(logs);
   } catch (e) { res.status(500).json({ error: "Errore log" }); }
+});
+
+// Rotta per pulire i log (Solo per Admin)
+app.delete('/api/admin/logs', async (req, res) => {
+  try {
+    // Nella realtà dovresti controllare qui se l'utente è admin, 
+    // per ora ci fidiamo del frontend per semplicità
+    await ActionLog.deleteMany({});
+    res.json({ success: true, message: 'Registro attività pulito!' });
+  } catch (error) {
+    res.status(500).json({ error: 'Errore durante la pulizia dei log' });
+  }
 });
 
 // 8. Adotta o Abbandona un Albero

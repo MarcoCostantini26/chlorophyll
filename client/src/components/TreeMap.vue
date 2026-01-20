@@ -18,13 +18,86 @@ let markersLayer = null;
 let heatLayers = []; 
 let markersMap = {}; 
 
-const getIcon = (status) => {
+// --- CONFIGURAZIONE LOGICA AVANZATA (4 AZIONI) ---
+const getPlantConfig = (category) => {
+  const cat = category || 'tree';
+
+  // 1. AZIONE: POTA ✂️
+  if (['hedge', 'bush'].includes(cat)) {
+    return {
+      actionLabel: '✂️ Pota',
+      statusLabel: 'Ordine',
+      emoji: cat === 'hedge' ? '✂️' : '🌾',
+      typeLabel: cat === 'hedge' ? 'Siepe' : 'Cespuglio',
+      barColorLow: '#d35400', 
+      barColorHigh: '#27ae60' 
+    };
+  }
+
+  // 2. AZIONE: CONCIMA 🍂
+  if (cat === 'potted') {
+    return {
+      actionLabel: '🍂 Concima',
+      statusLabel: 'Terreno',
+      emoji: '🏺',
+      typeLabel: 'Fioriera',
+      barColorLow: '#8e44ad', 
+      barColorHigh: '#9b59b6' 
+    };
+  }
+
+  // 3. AZIONE: PULISCI 🧹
+  if (cat === 'succulent') {
+    return {
+      actionLabel: '🧹 Pulisci',
+      statusLabel: 'Igiene',
+      emoji: '🌵',
+      typeLabel: 'Pianta Grassa',
+      barColorLow: '#7f8c8d', 
+      barColorHigh: '#1abc9c' 
+    };
+  }
+
+  // 4. AZIONE: INNAFFIA 💧 (Default)
+  const labels = {
+    tree: { label: 'Albero', emoji: '🌲' },
+    flowerbed: { label: 'Aiuola', emoji: '🌻' },
+    vertical_garden: { label: 'Giardino Vert.', emoji: '🧱' }
+  };
+  const info = labels[cat] || labels['tree'];
+
+  return {
+    actionLabel: '💧 Innaffia',
+    statusLabel: 'Acqua',
+    emoji: info.emoji,
+    typeLabel: info.label,
+    barColorLow: '#e74c3c', 
+    barColorHigh: '#3498db' 
+  };
+};
+
+const getIcon = (tree) => {
+  const status = tree.status;
+  const config = getPlantConfig(tree.category);
   const color = status === 'healthy' ? '#2ecc71' : status === 'thirsty' ? '#f1c40f' : '#e74c3c';
+
   return L.divIcon({
     className: 'custom-pin',
-    html: `<div style="background-color: ${color}; width: 14px; height: 14px; border-radius: 50%; border: 2px solid white; box-shadow: 0 2px 4px rgba(0,0,0,0.3);"></div>`,
-    iconSize: [14, 14],
-    iconAnchor: [7, 7]
+    html: `
+      <div style="
+        background-color: ${color}; 
+        width: 30px; height: 30px; 
+        border-radius: 50%; 
+        border: 2px solid white; 
+        box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+        display: flex; align-items: center; justify-content: center;
+        font-size: 16px;
+      ">
+        ${config.emoji}
+      </div>
+    `,
+    iconSize: [30, 30],
+    iconAnchor: [15, 15]
   });
 };
 
@@ -52,7 +125,9 @@ const createClusterIcon = (cluster) => {
 
 const createPopupContent = (tree) => {
   const isAdopted = props.user && props.user.adoptedTrees && props.user.adoptedTrees.includes(tree._id);
-  const barColor = tree.waterLevel < 30 ? '#e74c3c' : '#3498db';
+  const config = getPlantConfig(tree.category);
+  
+  const barColor = tree.waterLevel < 30 ? config.barColorLow : config.barColorHigh;
   const headerColor = tree.status === 'healthy' ? '#2ecc71' : tree.status === 'thirsty' ? '#f1c40f' : '#e74c3c';
 
   return `
@@ -60,15 +135,23 @@ const createPopupContent = (tree) => {
       <div class="popup-header" style="background: ${headerColor}"></div>
       <div class="popup-body">
         <h3>${tree.name}</h3>
-        <p>${tree.species}</p>
+        <p style="text-transform: uppercase; font-size: 0.75rem; color: #95a5a6; font-weight: bold; letter-spacing: 1px;">
+          ${config.typeLabel} • ${tree.species}
+        </p>
+        
         <div class="bar-container">
           <div class="bar-fill" style="width:${tree.waterLevel}%; background-color:${barColor};"></div>
         </div>
-        <p>Acqua: <strong class="water-val-text">${tree.waterLevel}%</strong></p>
+        
+        <p>${config.statusLabel}: <strong class="val-text">${tree.waterLevel}%</strong></p>
+        
         <div class="actions">
            <button onclick="event.stopPropagation(); window.triggerWater('${tree._id}')" 
                    ${tree.waterLevel >= 100 ? 'disabled' : ''} 
-                   class="btn-water">💧 Innaffia</button>
+                   class="btn-action">
+             ${config.actionLabel}
+           </button>
+           
            <button onclick="event.stopPropagation(); window.triggerAdopt('${tree._id}')" 
                    class="btn-adopt ${isAdopted ? 'adopted' : ''}">
              ${isAdopted ? '❤️ Tuo' : '🤍 Adotta'}
@@ -82,6 +165,7 @@ const createPopupContent = (tree) => {
 const renderMap = () => {
   if (!map) return;
 
+  // --- RENDERING HEATMAP MIGLIORATO ---
   if (showHeatmap.value) {
     if (map.hasLayer(markersLayer)) map.removeLayer(markersLayer);
     heatLayers.forEach(l => map.removeLayer(l));
@@ -94,27 +178,56 @@ const renderMap = () => {
     props.trees.forEach(t => {
       const lat = Number(t.location.lat);
       const lng = Number(t.location.lng);
-      if (t.status === 'healthy') healthyPoints.push([lat, lng, 1.0]);
-      if (t.status === 'thirsty') thirstyPoints.push([lat, lng, 1.0]);
-      if (t.status === 'critical') criticalPoints.push([lat, lng, 1.0]);
+      // Intensity (terzo parametro) aumentato a 1.2 per rendere i colori più vivaci
+      if (t.status === 'healthy') healthyPoints.push([lat, lng, 1.2]);
+      if (t.status === 'thirsty') thirstyPoints.push([lat, lng, 1.2]);
+      if (t.status === 'critical') criticalPoints.push([lat, lng, 1.2]);
     });
 
-    const heatOpts = { radius: 35, blur: 20, minOpacity: 0.6, maxZoom: 16, max: 1.0 };
-    if (healthyPoints.length) heatLayers.push(L.heatLayer(healthyPoints, { ...heatOpts, gradient: { 0.4: '#2ecc71', 1.0: '#27ae60' } }).addTo(map));
-    if (thirstyPoints.length) heatLayers.push(L.heatLayer(thirstyPoints, { ...heatOpts, gradient: { 0.4: '#f1c40f', 1.0: '#f39c12' } }).addTo(map));
-    if (criticalPoints.length) heatLayers.push(L.heatLayer(criticalPoints, { ...heatOpts, gradient: { 0.4: '#e74c3c', 1.0: '#c0392b' } }).addTo(map));
+    // --- NUOVI PARAMETRI PER AREE PIÙ ESTESE ---
+    const heatOpts = { 
+      radius: 60,      // Molto più grande (era 35) per estendere le aree
+      blur: 40,        // Più sfumato (era 20) per fondere i punti
+      minOpacity: 0.4, // Leggermente più trasparente per vedere la mappa sotto
+      maxZoom: 14,     // Abbassato (era 16) così si vede l'intensità anche da lontano
+      max: 1.0 
+    };
+
+    // Creiamo 3 layer sovrapposti per gestire i colori
+    if (healthyPoints.length) {
+      heatLayers.push(L.heatLayer(healthyPoints, { 
+        ...heatOpts, 
+        gradient: { 0.4: '#2ecc71', 1.0: '#27ae60' } // Verde Smeraldo
+      }).addTo(map));
+    }
+
+    if (thirstyPoints.length) {
+      heatLayers.push(L.heatLayer(thirstyPoints, { 
+        ...heatOpts, 
+        gradient: { 0.4: '#f1c40f', 1.0: '#f39c12' } // Giallo Arancio
+      }).addTo(map));
+    }
+
+    if (criticalPoints.length) {
+      heatLayers.push(L.heatLayer(criticalPoints, { 
+        ...heatOpts, 
+        gradient: { 0.4: '#e74c3c', 1.0: '#c0392b' } // Rosso Fuoco
+      }).addTo(map));
+    }
     return;
   }
 
+  // --- RENDERING MARKERS ---
   heatLayers.forEach(l => map.removeLayer(l));
   heatLayers = [];
   if (!map.hasLayer(markersLayer)) map.addLayer(markersLayer);
 
   props.trees.forEach(tree => {
     const existingMarker = markersMap[tree._id];
+    const config = getPlantConfig(tree.category);
     
     if (existingMarker) {
-      existingMarker.setIcon(getIcon(tree.status));
+      existingMarker.setIcon(getIcon(tree));
       existingMarker.treeStatus = tree.status; 
 
       const popup = existingMarker.getPopup();
@@ -123,18 +236,28 @@ const renderMap = () => {
         if (popupEl) {
           const barFill = popupEl.querySelector('.bar-fill');
           if (barFill) {
+             const barColor = tree.waterLevel < 30 ? config.barColorLow : config.barColorHigh;
              barFill.style.width = `${tree.waterLevel}%`;
-             barFill.style.backgroundColor = tree.waterLevel < 30 ? '#e74c3c' : '#3498db';
+             barFill.style.backgroundColor = barColor;
           }
-          const valText = popupEl.querySelector('.water-val-text');
+          const valText = popupEl.querySelector('.val-text');
           if (valText) valText.innerText = `${tree.waterLevel}%`;
 
-          const btnWater = popupEl.querySelector('.btn-water');
-          if (btnWater) {
-             if (tree.waterLevel >= 100) btnWater.setAttribute('disabled', 'disabled');
-             else btnWater.removeAttribute('disabled');
+          const btnAction = popupEl.querySelector('.btn-action');
+          if (btnAction) {
+             btnAction.innerText = config.actionLabel; 
+             if (config.actionLabel.includes('Pota')) btnAction.style.background = '#d35400';
+             else if (config.actionLabel.includes('Concima')) btnAction.style.background = '#8e44ad';
+             else if (config.actionLabel.includes('Pulisci')) btnAction.style.background = '#1abc9c';
+             else btnAction.style.background = '#2ecc71'; 
+
+             if (tree.waterLevel >= 100) {
+                btnAction.setAttribute('disabled', 'disabled');
+                btnAction.style.background = '#bdc3c7'; 
+             } else {
+                btnAction.removeAttribute('disabled');
+             }
           }
-          
           const header = popupEl.querySelector('.popup-header');
           const headerColor = tree.status === 'healthy' ? '#2ecc71' : tree.status === 'thirsty' ? '#f1c40f' : '#e74c3c';
           if (header) header.style.background = headerColor;
@@ -150,9 +273,8 @@ const renderMap = () => {
       } else {
         existingMarker.setPopupContent(createPopupContent(tree));
       }
-
     } else {
-      const marker = L.marker([tree.location.lat, tree.location.lng], { icon: getIcon(tree.status) });
+      const marker = L.marker([tree.location.lat, tree.location.lng], { icon: getIcon(tree) });
       marker.treeStatus = tree.status;
       marker.bindPopup(createPopupContent(tree));
       markersMap[tree._id] = marker;
@@ -168,12 +290,8 @@ const initMap = () => {
   L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', { attribution: '&copy; OpenStreetMap', maxZoom: 19 }).addTo(map);
 
   markersLayer = L.markerClusterGroup({ 
-    showCoverageOnHover: false, 
-    maxClusterRadius: 50, 
-    // FIX 2: Rimesse le animazioni fluide
-    animate: true, 
-    animateAddingMarkers: true,
-    spiderfyOnMaxZoom: true,
+    showCoverageOnHover: false, maxClusterRadius: 50, 
+    animate: true, animateAddingMarkers: true, spiderfyOnMaxZoom: true,
     iconCreateFunction: createClusterIcon 
   });
 };
@@ -192,14 +310,14 @@ onBeforeUnmount(() => { if (map) { map.remove(); map = null; } markersMap = {}; 
 <template>
   <div class="map-wrapper">
     <button class="toggle-heatmap-btn" :class="{ active: showHeatmap }" @click="showHeatmap = !showHeatmap">
-      {{ showHeatmap ? '📍 Mostra Alberi' : '🔥 Mostra Heatmap' }}
+      {{ showHeatmap ? '📍 Mostra Piante' : '🔥 Mostra Heatmap' }}
     </button>
     <div ref="mapContainer" class="map-container"></div>
   </div>
 </template>
 
 <style>
-/* CSS CLUSTER */
+/* STILI UGUALI AL PRECEDENTE (Cluster, Popup, ecc.) */
 .marker-cluster-small, .cluster-green { background-color: rgba(46, 204, 113, 0.6) !important; }
 .marker-cluster-small div, .cluster-green div { background-color: rgba(39, 174, 96, 0.8) !important; }
 .marker-cluster-medium, .cluster-yellow { background-color: rgba(241, 196, 15, 0.6) !important; }
@@ -208,56 +326,31 @@ onBeforeUnmount(() => { if (map) { map.remove(); map = null; } markersMap = {}; 
 .marker-cluster-large div, .cluster-red div { background-color: rgba(192, 57, 43, 0.8) !important; }
 .marker-cluster span { color: white; font-weight: bold; font-family: 'Inter', sans-serif; }
 
-/* MAPPA */
 .map-wrapper { position: relative; width: 100%; height: 500px; }
 .map-container { height: 100%; width: 100%; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 15px rgba(0,0,0,0.1); border: 4px solid #fff; z-index: 1; }
 .toggle-heatmap-btn { position: absolute; top: 15px; right: 15px; z-index: 1000; background: white; border: 2px solid #2c3e50; color: #2c3e50; padding: 8px 15px; border-radius: 20px; font-weight: bold; cursor: pointer; box-shadow: 0 4px 10px rgba(0,0,0,0.2); transition: all 0.3s ease; font-family: 'Inter', sans-serif; }
 .toggle-heatmap-btn.active { background: #e74c3c; color: white; border-color: #c0392b; box-shadow: 0 0 15px rgba(231, 76, 60, 0.5); }
 
-/* --- FIX POPUP: RESET TOTALE LEAFLET --- */
+/* POPUP */
 .leaflet-popup-content-wrapper { padding: 0 !important; overflow: hidden; border-radius: 12px !important; }
 .leaflet-popup-content { margin: 0 !important; width: 220px !important; }
+.leaflet-container a.leaflet-popup-close-button { color: white !important; font-size: 24px !important; top: 5px !important; right: 5px !important; text-shadow: 0 1px 2px rgba(0,0,0,0.3); z-index: 2000; }
 
-/* FIX 1: BOTTONE CHIUDI (X) */
-/* Lo forziamo a essere bianco e sopra l'header colorato */
-.leaflet-container a.leaflet-popup-close-button {
-  color: rgb(108, 96, 96) !important;
-  font-size: 24px !important;
-  top: 5px !important;
-  right: 5px !important;
-  text-shadow: 0 1px 2px rgba(0,0,0,0.3);
-  z-index: 2000;
-}
-.leaflet-container a.leaflet-popup-close-button:hover {
-  color: #070000 !important;
-}
-
-/* LAYOUT INTERNO POPUP */
 .popup-custom { text-align: center; width: 100%; font-family: 'Inter', sans-serif; }
-
-/* Header: Altezza ridotta per lasciare spazio, ma colore pieno */
-.popup-header { 
-  height: 12px; /* Ridotto per non coprire troppo */
-  width: 100%; 
-  margin: 0;
-}
-
+.popup-header { height: 12px; width: 100%; margin: 0; }
 .popup-body { padding: 15px; padding-top: 10px; }
-
 .popup-custom h3 { margin: 0; color: #2c3e50; font-size: 1.1rem; font-weight: 700; margin-top: 5px; }
 .popup-custom p { margin: 4px 0; font-size: 0.85rem; color: #7f8c8d; }
 .bar-container { width: 100%; height: 10px; background: #ecf0f1; border-radius: 5px; margin: 8px 0; overflow: hidden; border: 1px solid #bdc3c7; }
-
-/* ANIMAZIONE FLUIDA */
 .bar-fill { height: 100%; transition: width 0.8s ease-out, background-color 0.3s ease; }
-
 .actions { display: flex; gap: 8px; margin-top: 12px; }
 
 .popup-custom button { flex: 1; border: none; padding: 8px; border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 0.85rem; transition: transform 0.1s; }
 .popup-custom button:active { transform: scale(0.95); }
 
-.btn-water { background: #2ecc71; color: white; }
-.btn-water:disabled { background: #bdc3c7; cursor: not-allowed; }
+.btn-action { background: #2ecc71; color: white; }
+.btn-action:disabled { background: #bdc3c7 !important; cursor: not-allowed; }
+
 .btn-adopt { background: white; border: 2px solid #e74c3c !important; color: #e74c3c; }
 .btn-adopt:hover { background: #fdedec; }
 .btn-adopt.adopted { background: #e74c3c; color: white; }
