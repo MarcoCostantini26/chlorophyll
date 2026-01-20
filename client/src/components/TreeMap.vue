@@ -72,7 +72,9 @@ const createPopupContent = (tree) => {
         <h3>${tree.name}</h3>
         <p style="text-transform: uppercase; font-size: 0.75rem; color: #95a5a6; font-weight: bold; letter-spacing: 1px;">${config.typeLabel} • ${tree.species}</p>
         <div class="bar-container"><div class="bar-fill" style="width:${tree.waterLevel}%; background-color:${barColor};"></div></div>
-        <p>${config.statusLabel}: <strong class="val-text">${tree.waterLevel}%</strong></p>
+        
+        <p>${config.statusLabel}: <strong class="val-text">${Math.round(tree.waterLevel)}%</strong></p>
+        
         <div class="actions">
            <button onclick="event.stopPropagation(); window.triggerWater('${tree._id}')" ${tree.waterLevel >= 100 ? 'disabled' : ''} class="btn-action">${config.actionLabel}</button>
            <button onclick="event.stopPropagation(); window.triggerAdopt('${tree._id}')" class="btn-adopt ${isAdopted ? 'adopted' : ''}">${isAdopted ? '❤️ Tuo' : '🤍 Adotta'}</button>
@@ -97,7 +99,7 @@ defineExpose({ flyToTree });
 const renderMap = () => {
   if (!map) return;
   
-  // --- HEATMAP FIX: COLORI SEPARATI ---
+  // Heatmap
   if (showHeatmap.value) {
     if (map.hasLayer(markersLayer)) map.removeLayer(markersLayer);
     heatLayers.forEach(l => map.removeLayer(l)); 
@@ -110,41 +112,19 @@ const renderMap = () => {
     props.trees.forEach(t => {
       const lat = Number(t.location.lat);
       const lng = Number(t.location.lng);
-      // Intensity 1.2 per colori vivaci
       if (t.status === 'healthy') healthyPoints.push([lat, lng, 1.2]);
       if (t.status === 'thirsty') thirstyPoints.push([lat, lng, 1.2]);
       if (t.status === 'critical') criticalPoints.push([lat, lng, 1.2]);
     });
 
     const heatOpts = { radius: 60, blur: 40, minOpacity: 0.4, maxZoom: 14, max: 1.0 };
-
-    // Layer Verde (Sani)
-    if (healthyPoints.length) {
-      heatLayers.push(L.heatLayer(healthyPoints, { 
-        ...heatOpts, 
-        gradient: { 0.4: '#2ecc71', 1.0: '#27ae60' } 
-      }).addTo(map));
-    }
-
-    // Layer Giallo (Assetati)
-    if (thirstyPoints.length) {
-      heatLayers.push(L.heatLayer(thirstyPoints, { 
-        ...heatOpts, 
-        gradient: { 0.4: '#f1c40f', 1.0: '#f39c12' } 
-      }).addTo(map));
-    }
-
-    // Layer Rosso (Critici)
-    if (criticalPoints.length) {
-      heatLayers.push(L.heatLayer(criticalPoints, { 
-        ...heatOpts, 
-        gradient: { 0.4: '#e74c3c', 1.0: '#c0392b' } 
-      }).addTo(map));
-    }
+    if (healthyPoints.length) heatLayers.push(L.heatLayer(healthyPoints, { ...heatOpts, gradient: { 0.4: '#2ecc71', 1.0: '#27ae60' } }).addTo(map));
+    if (thirstyPoints.length) heatLayers.push(L.heatLayer(thirstyPoints, { ...heatOpts, gradient: { 0.4: '#f1c40f', 1.0: '#f39c12' } }).addTo(map));
+    if (criticalPoints.length) heatLayers.push(L.heatLayer(criticalPoints, { ...heatOpts, gradient: { 0.4: '#e74c3c', 1.0: '#c0392b' } }).addTo(map));
     return;
   }
 
-  // --- MARKERS STANDARD ---
+  // Markers
   heatLayers.forEach(l => map.removeLayer(l)); 
   heatLayers = [];
   if (!map.hasLayer(markersLayer)) map.addLayer(markersLayer);
@@ -163,7 +143,10 @@ const renderMap = () => {
         if (popupEl) {
           const barFill = popupEl.querySelector('.bar-fill');
           if (barFill) { barFill.style.width = `${tree.waterLevel}%`; barFill.style.backgroundColor = tree.waterLevel < 30 ? config.barColorLow : config.barColorHigh; }
-          const valText = popupEl.querySelector('.val-text'); if (valText) valText.innerText = `${tree.waterLevel}%`;
+          
+          const valText = popupEl.querySelector('.val-text'); 
+          // QUI HO USATO Math.round() PER L'AGGIORNAMENTO LIVE
+          if (valText) valText.innerText = `${Math.round(tree.waterLevel)}%`;
           
           const btnAction = popupEl.querySelector('.btn-action');
           if (btnAction) {
@@ -219,7 +202,7 @@ onBeforeUnmount(() => { if (map) { map.remove(); map = null; } markersMap = {}; 
 </template>
 
 <style>
-/* CLUSTER & MAPPA */
+/* CSS CLUSTER */
 .marker-cluster-small, .cluster-green { background-color: rgba(46, 204, 113, 0.6) !important; }
 .marker-cluster-small div, .cluster-green div { background-color: rgba(39, 174, 96, 0.8) !important; }
 .marker-cluster-medium, .cluster-yellow { background-color: rgba(241, 196, 15, 0.6) !important; }
@@ -233,7 +216,7 @@ onBeforeUnmount(() => { if (map) { map.remove(); map = null; } markersMap = {}; 
 .toggle-heatmap-btn { position: absolute; top: 15px; right: 15px; z-index: 1000; background: white; border: 2px solid #2c3e50; color: #2c3e50; padding: 8px 15px; border-radius: 20px; font-weight: bold; cursor: pointer; box-shadow: 0 4px 10px rgba(0,0,0,0.2); transition: all 0.3s ease; font-family: 'Inter', sans-serif; }
 .toggle-heatmap-btn.active { background: #e74c3c; color: white; border-color: #c0392b; box-shadow: 0 0 15px rgba(231, 76, 60, 0.5); }
 
-/* POPUP LEAFLET */
+/* POPUP E RESET LEAFLET */
 .leaflet-popup-content-wrapper { padding: 0 !important; overflow: hidden; border-radius: 12px !important; }
 .leaflet-popup-content { margin: 0 !important; width: 220px !important; }
 
@@ -265,8 +248,6 @@ onBeforeUnmount(() => { if (map) { map.remove(); map = null; } markersMap = {}; 
 .popup-custom button:active { transform: scale(0.95); }
 .btn-action { background: #2ecc71; color: white; }
 .btn-action:disabled { background: #bdc3c7 !important; cursor: not-allowed; }
-
-/* STILE BOTTONE ADOTTA */
 .btn-adopt { background: white; border: 2px solid #e74c3c !important; color: #e74c3c; }
 .btn-adopt:hover { background: #fdedec; }
 .btn-adopt.adopted { background: #e74c3c; color: white; }

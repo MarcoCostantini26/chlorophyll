@@ -6,17 +6,12 @@ import Leaderboard from '../components/Leaderboard.vue';
 import BadgeList from '../components/BadgeList.vue';
 import AdminPanel from '../components/AdminPanel.vue';
 
-// Props ricevute da App.vue
 const props = defineProps(['user', 'trees', 'weather', 'isConnected']);
-
-// Emits verso App.vue (per socket logic)
 const emit = defineEmits(['water', 'force-water', 'ask-ai', 'adopt']);
 
-// UI State locale alla dashboard
 const sidebarTab = ref('leaderboard');
 const treeMapRef = ref(null);
 
-// Computed locali
 const isAdmin = computed(() => props.user?.role === 'city_manager');
 const canInteract = computed(() => props.user && (props.user.role === 'green_guardian' || props.user.role === 'city_manager'));
 
@@ -26,10 +21,7 @@ const myAdoptedTrees = computed(() => {
   return props.trees.filter(t => adoptedIds.includes(t._id));
 });
 
-// Funzione Focus Mappa
-const handleFocusMap = (tree) => {
-  if (treeMapRef.value) treeMapRef.value.flyToTree(tree);
-};
+const handleFocusMap = (tree) => { if (treeMapRef.value) treeMapRef.value.flyToTree(tree); };
 </script>
 
 <template>
@@ -93,7 +85,7 @@ const handleFocusMap = (tree) => {
             <div class="card-header"><h3>{{ tree.name }}</h3></div>
             <div class="progress-container">
               <div class="progress-bar"><div class="fill" :style="{ width: tree.waterLevel + '%' }"></div></div>
-              <small>{{ tree.waterLevel }}%</small>
+              <small>{{ Math.round(tree.waterLevel) }}%</small>
             </div>
             <div class="actions">
               <button class="std-btn" @click="emit('water', tree._id)" :disabled="!canInteract || tree.waterLevel >= 100" :class="{ 'btn-disabled': !canInteract }">
@@ -133,12 +125,38 @@ const handleFocusMap = (tree) => {
 </template>
 
 <style scoped>
-/* Incolla qui tutto il CSS che riguardava il layout della dashboard presente nel vecchio App.vue */
-/* Per brevità, copio le classi strutturali principali */
-.main-layout { display: grid; grid-template-columns: 1fr 350px; gap: 30px; align-items: stretch; position: relative; }
-.content-column { display: flex; flex-direction: column; gap: 30px; width: 100%; }
-.sidebar-column { width: 100%; height: 100%; }
-.sticky-sidebar { position: -webkit-sticky; position: sticky; top: 20px; z-index: 900; height: fit-content; }
+/* REPLICA ESATTA DEL VECCHIO LAYOUT FUNZIONANTE */
+.main-layout { 
+  display: grid; 
+  grid-template-columns: 1fr 350px; 
+  gap: 30px; 
+  /* 'stretch' era il valore nel vecchio file che funzionava */
+  align-items: stretch; 
+  position: relative; 
+}
+
+.content-column { 
+  display: flex; flex-direction: column; gap: 30px; width: 100%; 
+}
+
+.sidebar-column { 
+  width: 100%; height: 100%; 
+}
+
+.sticky-sidebar { 
+  position: -webkit-sticky; 
+  position: sticky; 
+  
+  /* L'UNICA DIFFERENZA COL VECCHIO FILE:
+     Invece di 20px, mettiamo 90px perché ora hai un header fisso di 70px.
+     Se metti 20px, finisce sotto l'header nero. */
+  top: 90px; 
+  
+  z-index: 900; 
+  height: fit-content; 
+}
+
+/* STILI STANDARD DEL VECCHIO FILE */
 .top-row-grid { display: grid; grid-template-columns: 1fr 1.5fr; gap: 20px; width: 100%; }
 .full-width-block { width: 100%; }
 .info-stack { display: flex; flex-direction: column; gap: 10px; }
