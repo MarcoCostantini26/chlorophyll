@@ -11,13 +11,16 @@ import MyForest from './components/MyForest.vue';
 
 const socket = io('http://localhost:3000');
 
+// Riferimento al componente TreeMap (per comandarlo dall'esterno)
+const treeMapRef = ref(null);
+
 // --- STATO ---
 const currentView = ref('dashboard');
 const trees = ref([]);
 const currentUser = ref(null);
 const isConnected = ref(false);
 const currentWeather = ref('sunny');
-const sidebarTab = ref('leaderboard'); // 'leaderboard' o 'myforest'
+const sidebarTab = ref('leaderboard'); 
 
 // --- MODALI ---
 const showLevelUp = ref(false);
@@ -32,7 +35,6 @@ const notificationPermission = ref(Notification.permission);
 const canInteract = computed(() => currentUser.value && (currentUser.value.role === 'green_guardian' || currentUser.value.role === 'city_manager'));
 const isAdmin = computed(() => currentUser.value && currentUser.value.role === 'city_manager');
 
-// Filtra gli alberi adottati (usando adoptedTrees CamelCase)
 const myAdoptedTrees = computed(() => {
   if (!currentUser.value || !trees.value) return [];
   const adoptedIds = currentUser.value.adoptedTrees || [];
@@ -68,10 +70,8 @@ const askDrChlorophyll = async (tree) => {
   finally { isAiThinking.value = false; } 
 };
 
-// Funzione Innaffia SEMPLIFICATA (Niente GPS)
 const waterTree = (treeId) => { 
   if (!canInteract.value) return; 
-  // Manda subito il comando senza chiedere posizione
   socket.emit('water_tree', { treeId, userId: currentUser.value._id }); 
 };
 
@@ -88,8 +88,12 @@ const toggleAdopt = async (treeId) => {
   } catch (e) { console.error(e); }
 };
 
+// --- FUNZIONE FOCUS (Nuova Versione) ---
 const handleFocusMap = (tree) => {
-  console.log(`Focus su: ${tree.name}`);
+  // Se il componente mappa è montato, chiamiamo il suo metodo flyToTree
+  if (treeMapRef.value) {
+    treeMapRef.value.flyToTree(tree);
+  }
 };
 
 onMounted(() => {
@@ -117,7 +121,7 @@ onMounted(() => {
           {{ isConnected ? 'System Online' : 'Offline' }}
         </div>
       </div>
-      <button v-if="notificationPermission === 'default'" @click="requestNotificationPermission" class="btn-notif">🔔 Attiva Notifiche</button>
+      <button v-if="notificationPermission === 'default'" @click="requestNotificationPermission" class="btn-notif std-btn">🔔 Attiva Notifiche</button>
     </div>
 
     <UserProfile 
@@ -169,6 +173,7 @@ onMounted(() => {
 
         <div class="section-block full-width-block">
           <TreeMap 
+            ref="treeMapRef" 
             :trees="trees" 
             :user="currentUser"
             @water-action="waterTree" 
@@ -181,9 +186,9 @@ onMounted(() => {
           <div class="grid">
             <div v-for="tree in trees" :key="tree._id" class="card" :class="tree.status">
               <div class="card-header"><h3>{{ tree.name }}</h3></div>
-              <div class="progress-container"><div class="progress-bar"><div class="fill" :style="{ width: tree.waterLevel + '%' }"></div></div><small>{{ tree.waterLevel }}% Idratazione</small></div>
+              <div class="progress-container"><div class="progress-bar"><div class="fill" :style="{ width: tree.waterLevel + '%' }"></div></div><small>{{ tree.waterLevel }}%</small></div>
               <div class="actions">
-                <button @click="waterTree(tree._id)" :disabled="!canInteract || tree.waterLevel >= 100" :class="{ 'btn-disabled': !canInteract }">{{ canInteract ? '💧 Innaffia' : '🔒 Solo Guardian' }}</button>
+                <button class="std-btn" @click="waterTree(tree._id)" :disabled="!canInteract || tree.waterLevel >= 100" :class="{ 'btn-disabled': !canInteract }">{{ canInteract ? 'Azione' : '🔒 Solo Guardian' }}</button>
                 <button @click="askDrChlorophyll(tree)" class="btn-ai">🤖 AI</button>
               </div>
               <div v-if="isAdmin" class="debug-controls"><div class="debug-buttons"><button class="btn-debug minus" @click="forceWater(tree._id, -20)">-</button><button class="btn-debug plus" @click="forceWater(tree._id, 20)">+</button></div></div>
@@ -215,7 +220,19 @@ onMounted(() => {
 
     <div v-if="showLevelUp" class="level-up-modal">🌟 LEVEL UP! 🌟</div>
     <div v-if="showBadgeModal" class="badge-modal"><div class="badge-icon">🏆</div><h3>BADGE SBLOCCATO!</h3><p class="badge-name">{{ lastUnlockedBadge.name }}</p><small>{{ lastUnlockedBadge.desc }}</small></div>
-    <div v-if="showAiModal" class="ai-modal-overlay" @click.self="showAiModal = false"><div class="ai-modal"><div class="ai-header"><h3>🤖 Dr. Chlorophyll</h3><button @click="showAiModal = false" class="close-btn">✖</button></div><div class="ai-body"><div v-if="isAiThinking" class="thinking">...Analisi...</div><p v-else>{{ aiResponse }}</p></div></div></div>
+    
+    <div v-if="showAiModal" class="ai-modal-overlay" @click.self="showAiModal = false">
+      <div class="ai-modal">
+        <div class="ai-header">
+          <h3>🤖 Dr. Chlorophyll</h3>
+          <button @click="showAiModal = false" class="close-btn">✖</button>
+        </div>
+        <div class="ai-body">
+          <div v-if="isAiThinking" class="thinking">...Analisi...</div>
+          <p v-else>{{ aiResponse }}</p>
+        </div>
+      </div>
+    </div>
 
   </div>
 </template>
@@ -236,15 +253,12 @@ onMounted(() => {
 /* LAYOUT PRINCIPALE */
 .main-layout { 
   display: grid; 
-  /* FIX LAYOUT: Sinistra flessibile, Destra fissa a 350px */
   grid-template-columns: 1fr 350px; 
   gap: 30px; 
   align-items: stretch; 
   position: relative; 
 }
 .content-column { display: flex; flex-direction: column; gap: 30px; width: 100%; }
-
-/* SIDEBAR FISSA (STICKY) */
 .sidebar-column { width: 100%; height: 100%; }
 .sticky-sidebar { position: -webkit-sticky; position: sticky; top: 20px; z-index: 900; height: fit-content; }
 
@@ -296,18 +310,54 @@ onMounted(() => {
 .progress-bar { width: 100%; height: 8px; background: #ecf0f1; border-radius: 4px; overflow: hidden; margin: 10px 0; }
 .fill { height: 100%; background: #3498db; transition: width 0.4s; }
 .actions { display: flex; gap: 8px; margin-top: 15px; }
-button { width: 100%; padding: 8px; border: none; background: #2ecc71; color: white; border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 0.85rem; }
-.btn-ai { background: #8e44ad; width: 40%; }
-.btn-disabled { background-color: #bdc3c7 !important; cursor: not-allowed; }
-.debug-controls { margin-top: 10px; border-top: 1px dashed #eee; padding-top: 5px; text-align: center; opacity: 0.7; }
-.debug-buttons { display: flex; justify-content: center; gap: 5px; } .btn-debug { padding: 2px 8px; font-size: 0.7rem; }
 
-/* Modali */
+/* CLASSE STANDARD PULSANTI */
+.std-btn {
+  width: 100%; padding: 8px; border: none; 
+  background: #2ecc71; color: white; 
+  border-radius: 6px; cursor: pointer; 
+  font-weight: bold; font-size: 0.85rem;
+  transition: transform 0.1s;
+}
+.std-btn:active { transform: scale(0.95); }
+.btn-disabled { background-color: #bdc3c7 !important; cursor: not-allowed; }
+
+/* Bottone Notifiche */
+.btn-notif { background: #f39c12; width: auto; padding: 8px 15px; }
+
+/* Bottone AI */
+.btn-ai { 
+  background: #8e44ad; color: white; border: none; border-radius: 6px;
+  cursor: pointer; font-weight: bold; width: 40%;
+  transition: transform 0.1s;
+}
+.btn-ai:active { transform: scale(0.95); }
+
+/* CONTROLLI DEBUG */
+.debug-controls { margin-top: 10px; border-top: 1px dashed #eee; padding-top: 5px; text-align: center; opacity: 0.7; }
+.debug-buttons { display: flex; justify-content: center; gap: 5px; } .btn-debug { padding: 2px 8px; font-size: 0.7rem; border:none; background:#ccc; cursor:pointer;}
+
+/* MODALI */
 .ai-modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 2000; display: flex; justify-content: center; align-items: center; padding: 20px; backdrop-filter: blur(2px); }
 .ai-modal { background: white; width: 100%; max-width: 400px; border-radius: 15px; overflow: hidden; box-shadow: 0 20px 40px rgba(0,0,0,0.2); animation: slideUp 0.3s ease; }
 .ai-header { background: #8e44ad; color: white; padding: 15px 20px; display: flex; justify-content: space-between; align-items: center; }
 .ai-body { padding: 25px; color: #333; line-height: 1.6; font-size: 1.05rem; }
-.close-btn { background: rgba(255,255,255,0.2); border: none; color: white; width: 30px; height: 30px; border-radius: 50%; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: background 0.2s; } .close-btn:hover { background: rgba(255,255,255,0.4); }
+
+/* Pulsante Chiudi indipendente */
+.close-btn { 
+  background: rgba(255,255,255,0.2); 
+  border: none; 
+  color: white; 
+  width: 30px !important; 
+  height: 30px !important; 
+  min-width: 30px !important;
+  border-radius: 50% !important; 
+  display: flex; align-items: center; justify-content: center; 
+  cursor: pointer; transition: background 0.2s; 
+  padding: 0 !important; font-size: 1.1rem; flex-shrink: 0; 
+} 
+.close-btn:hover { background: rgba(255,255,255,0.4); }
+
 .badge-modal { position: fixed; top: 30%; left: 50%; transform: translate(-50%, -50%); background: white; border: 4px solid #f1c40f; color: #2c3e50; padding: 30px; text-align: center; border-radius: 20px; box-shadow: 0 20px 60px rgba(0,0,0,0.3); z-index: 4000; animation: popIn 0.5s; min-width: 300px; }
 .badge-modal .badge-icon { font-size: 5rem; margin-bottom: 15px; display: block; }
 .badge-modal h3 { margin: 0; color: #f39c12; font-size: 1.6rem; text-transform: uppercase; }
