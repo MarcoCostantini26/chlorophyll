@@ -18,7 +18,7 @@ onMounted(() => {
 
 <template>
   <div class="leaderboard-card">
-    <h3>🏆 Top Guardians</h3>
+    <h3>🏆 Classifica</h3>
     <ul>
       <li v-for="(user, index) in leaders" :key="user._id">
         <span class="rank">

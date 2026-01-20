@@ -97,19 +97,56 @@ defineExpose({ flyToTree });
 const renderMap = () => {
   if (!map) return;
   
-  // Heatmap Logic
+  // --- HEATMAP FIX: COLORI SEPARATI ---
   if (showHeatmap.value) {
     if (map.hasLayer(markersLayer)) map.removeLayer(markersLayer);
-    heatLayers.forEach(l => map.removeLayer(l)); heatLayers = [];
-    const points = [];
-    props.trees.forEach(t => { points.push([Number(t.location.lat), Number(t.location.lng), 1.2]); });
+    heatLayers.forEach(l => map.removeLayer(l)); 
+    heatLayers = [];
+
+    const healthyPoints = [];
+    const thirstyPoints = [];
+    const criticalPoints = [];
+
+    props.trees.forEach(t => {
+      const lat = Number(t.location.lat);
+      const lng = Number(t.location.lng);
+      // Intensity 1.2 per colori vivaci
+      if (t.status === 'healthy') healthyPoints.push([lat, lng, 1.2]);
+      if (t.status === 'thirsty') thirstyPoints.push([lat, lng, 1.2]);
+      if (t.status === 'critical') criticalPoints.push([lat, lng, 1.2]);
+    });
+
     const heatOpts = { radius: 60, blur: 40, minOpacity: 0.4, maxZoom: 14, max: 1.0 };
-    if (points.length) heatLayers.push(L.heatLayer(points, { ...heatOpts, gradient: { 0.4: '#2ecc71', 0.6: '#f1c40f', 1.0: '#e74c3c' } }).addTo(map));
+
+    // Layer Verde (Sani)
+    if (healthyPoints.length) {
+      heatLayers.push(L.heatLayer(healthyPoints, { 
+        ...heatOpts, 
+        gradient: { 0.4: '#2ecc71', 1.0: '#27ae60' } 
+      }).addTo(map));
+    }
+
+    // Layer Giallo (Assetati)
+    if (thirstyPoints.length) {
+      heatLayers.push(L.heatLayer(thirstyPoints, { 
+        ...heatOpts, 
+        gradient: { 0.4: '#f1c40f', 1.0: '#f39c12' } 
+      }).addTo(map));
+    }
+
+    // Layer Rosso (Critici)
+    if (criticalPoints.length) {
+      heatLayers.push(L.heatLayer(criticalPoints, { 
+        ...heatOpts, 
+        gradient: { 0.4: '#e74c3c', 1.0: '#c0392b' } 
+      }).addTo(map));
+    }
     return;
   }
 
-  // Marker Logic
-  heatLayers.forEach(l => map.removeLayer(l)); heatLayers = [];
+  // --- MARKERS STANDARD ---
+  heatLayers.forEach(l => map.removeLayer(l)); 
+  heatLayers = [];
   if (!map.hasLayer(markersLayer)) map.addLayer(markersLayer);
 
   props.trees.forEach(tree => {
@@ -120,44 +157,35 @@ const renderMap = () => {
       marker.setIcon(getIcon(tree)); 
       marker.treeStatus = tree.status;
 
-      // 🔄 AGGIORNAMENTO LIVE DEL POPUP APERTO
       const popup = marker.getPopup();
       if (popup && popup.isOpen()) {
         const popupEl = popup.getElement(); 
         if (popupEl) {
-          // 1. Barra e Testo
           const barFill = popupEl.querySelector('.bar-fill');
           if (barFill) { barFill.style.width = `${tree.waterLevel}%`; barFill.style.backgroundColor = tree.waterLevel < 30 ? config.barColorLow : config.barColorHigh; }
           const valText = popupEl.querySelector('.val-text'); if (valText) valText.innerText = `${tree.waterLevel}%`;
           
-          // 2. Bottone Azione (Innaffia/Pota)
           const btnAction = popupEl.querySelector('.btn-action');
           if (btnAction) {
              btnAction.innerText = config.actionLabel; 
              if (tree.waterLevel >= 100) { btnAction.setAttribute('disabled', 'disabled'); btnAction.style.background = '#bdc3c7'; } else { btnAction.removeAttribute('disabled'); btnAction.style.background = null; }
           }
           
-          // 3. Colore Header
           const header = popupEl.querySelector('.popup-header');
           if (header) header.style.background = tree.status === 'healthy' ? '#2ecc71' : tree.status === 'thirsty' ? '#f1c40f' : '#e74c3c';
 
-          // 🔥 4. FIX ADOZIONE: Aggiorna il bottone mentre guardi!
           const btnAdopt = popupEl.querySelector('.btn-adopt');
           if (btnAdopt) {
             const isAdopted = props.user && props.user.adoptedTrees && props.user.adoptedTrees.includes(tree._id);
             btnAdopt.innerHTML = isAdopted ? '❤️ Tuo' : '🤍 Adotta';
-            if (isAdopted) {
-              btnAdopt.classList.add('adopted');
-            } else {
-              btnAdopt.classList.remove('adopted');
-            }
+            if (isAdopted) btnAdopt.classList.add('adopted');
+            else btnAdopt.classList.remove('adopted');
           }
         }
       }
     } else {
       marker = L.marker([tree.location.lat, tree.location.lng], { icon: getIcon(tree) });
       marker.treeStatus = tree.status;
-      // Bind dinamico: ricalcola l'HTML ogni volta che apri
       marker.bindPopup(() => {
         const freshTree = props.trees.find(t => t._id === tree._id) || tree;
         return createPopupContent(freshTree);
