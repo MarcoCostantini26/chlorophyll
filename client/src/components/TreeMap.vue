@@ -18,7 +18,7 @@ let markersLayer = null;
 let heatLayers = []; 
 let markersMap = {}; 
 
-// --- CONFIGURAZIONE LOGICA AVANZATA ---
+// --- CONFIGURAZIONE LOGICA ---
 const getPlantConfig = (category) => {
   const cat = category || 'tree';
   if (['hedge', 'bush'].includes(cat)) {
@@ -82,7 +82,6 @@ const createPopupContent = (tree) => {
   `;
 };
 
-// Funzione per volare su un albero (chiamata da App.vue)
 const flyToTree = (tree) => {
   if (!map || !markersLayer) return;
   const marker = markersMap[tree._id];
@@ -93,11 +92,12 @@ const flyToTree = (tree) => {
     });
   }
 };
-
 defineExpose({ flyToTree });
 
 const renderMap = () => {
   if (!map) return;
+  
+  // Heatmap Logic
   if (showHeatmap.value) {
     if (map.hasLayer(markersLayer)) map.removeLayer(markersLayer);
     heatLayers.forEach(l => map.removeLayer(l)); heatLayers = [];
@@ -107,38 +107,63 @@ const renderMap = () => {
     if (points.length) heatLayers.push(L.heatLayer(points, { ...heatOpts, gradient: { 0.4: '#2ecc71', 0.6: '#f1c40f', 1.0: '#e74c3c' } }).addTo(map));
     return;
   }
+
+  // Marker Logic
   heatLayers.forEach(l => map.removeLayer(l)); heatLayers = [];
   if (!map.hasLayer(markersLayer)) map.addLayer(markersLayer);
 
   props.trees.forEach(tree => {
-    const existingMarker = markersMap[tree._id];
+    let marker = markersMap[tree._id];
     const config = getPlantConfig(tree.category);
-    if (existingMarker) {
-      existingMarker.setIcon(getIcon(tree)); existingMarker.treeStatus = tree.status;
-      const popup = existingMarker.getPopup();
+
+    if (marker) {
+      marker.setIcon(getIcon(tree)); 
+      marker.treeStatus = tree.status;
+
+      // 🔄 AGGIORNAMENTO LIVE DEL POPUP APERTO
+      const popup = marker.getPopup();
       if (popup && popup.isOpen()) {
         const popupEl = popup.getElement(); 
         if (popupEl) {
+          // 1. Barra e Testo
           const barFill = popupEl.querySelector('.bar-fill');
           if (barFill) { barFill.style.width = `${tree.waterLevel}%`; barFill.style.backgroundColor = tree.waterLevel < 30 ? config.barColorLow : config.barColorHigh; }
           const valText = popupEl.querySelector('.val-text'); if (valText) valText.innerText = `${tree.waterLevel}%`;
+          
+          // 2. Bottone Azione (Innaffia/Pota)
           const btnAction = popupEl.querySelector('.btn-action');
           if (btnAction) {
              btnAction.innerText = config.actionLabel; 
-             if (config.actionLabel.includes('Pota')) btnAction.style.background = '#d35400';
-             else if (config.actionLabel.includes('Concima')) btnAction.style.background = '#8e44ad';
-             else if (config.actionLabel.includes('Pulisci')) btnAction.style.background = '#1abc9c';
-             else btnAction.style.background = '#2ecc71'; 
-             if (tree.waterLevel >= 100) { btnAction.setAttribute('disabled', 'disabled'); btnAction.style.background = '#bdc3c7'; } else { btnAction.removeAttribute('disabled'); }
+             if (tree.waterLevel >= 100) { btnAction.setAttribute('disabled', 'disabled'); btnAction.style.background = '#bdc3c7'; } else { btnAction.removeAttribute('disabled'); btnAction.style.background = null; }
           }
+          
+          // 3. Colore Header
           const header = popupEl.querySelector('.popup-header');
           if (header) header.style.background = tree.status === 'healthy' ? '#2ecc71' : tree.status === 'thirsty' ? '#f1c40f' : '#e74c3c';
+
+          // 🔥 4. FIX ADOZIONE: Aggiorna il bottone mentre guardi!
+          const btnAdopt = popupEl.querySelector('.btn-adopt');
+          if (btnAdopt) {
+            const isAdopted = props.user && props.user.adoptedTrees && props.user.adoptedTrees.includes(tree._id);
+            btnAdopt.innerHTML = isAdopted ? '❤️ Tuo' : '🤍 Adotta';
+            if (isAdopted) {
+              btnAdopt.classList.add('adopted');
+            } else {
+              btnAdopt.classList.remove('adopted');
+            }
+          }
         }
-      } else { existingMarker.setPopupContent(createPopupContent(tree)); }
+      }
     } else {
-      const marker = L.marker([tree.location.lat, tree.location.lng], { icon: getIcon(tree) });
-      marker.treeStatus = tree.status; marker.bindPopup(createPopupContent(tree));
-      markersMap[tree._id] = marker; markersLayer.addLayer(marker);
+      marker = L.marker([tree.location.lat, tree.location.lng], { icon: getIcon(tree) });
+      marker.treeStatus = tree.status;
+      // Bind dinamico: ricalcola l'HTML ogni volta che apri
+      marker.bindPopup(() => {
+        const freshTree = props.trees.find(t => t._id === tree._id) || tree;
+        return createPopupContent(freshTree);
+      });
+      markersMap[tree._id] = marker; 
+      markersLayer.addLayer(marker);
     }
   });
   markersLayer.refreshClusters();
@@ -166,7 +191,7 @@ onBeforeUnmount(() => { if (map) { map.remove(); map = null; } markersMap = {}; 
 </template>
 
 <style>
-/* CSS CLUSTER */
+/* CLUSTER & MAPPA */
 .marker-cluster-small, .cluster-green { background-color: rgba(46, 204, 113, 0.6) !important; }
 .marker-cluster-small div, .cluster-green div { background-color: rgba(39, 174, 96, 0.8) !important; }
 .marker-cluster-medium, .cluster-yellow { background-color: rgba(241, 196, 15, 0.6) !important; }
@@ -180,25 +205,23 @@ onBeforeUnmount(() => { if (map) { map.remove(); map = null; } markersMap = {}; 
 .toggle-heatmap-btn { position: absolute; top: 15px; right: 15px; z-index: 1000; background: white; border: 2px solid #2c3e50; color: #2c3e50; padding: 8px 15px; border-radius: 20px; font-weight: bold; cursor: pointer; box-shadow: 0 4px 10px rgba(0,0,0,0.2); transition: all 0.3s ease; font-family: 'Inter', sans-serif; }
 .toggle-heatmap-btn.active { background: #e74c3c; color: white; border-color: #c0392b; box-shadow: 0 0 15px rgba(231, 76, 60, 0.5); }
 
-/* POPUP E RESET LEAFLET */
+/* POPUP LEAFLET */
 .leaflet-popup-content-wrapper { padding: 0 !important; overflow: hidden; border-radius: 12px !important; }
 .leaflet-popup-content { margin: 0 !important; width: 220px !important; }
 
-/* FIX PULSANTE CHIUDI (X) - RIPRISTINATO HOVER */
 .leaflet-container a.leaflet-popup-close-button {
-  color: white !important; /* Bianca di default */
+  color: white !important; 
   font-size: 24px !important;
   top: 5px !important;
   right: 5px !important;
   text-shadow: 0 1px 2px rgba(0,0,0,0.3);
   z-index: 2000;
-  transition: color 0.2s ease, transform 0.2s; /* Animazione */
+  transition: color 0.2s ease, transform 0.2s; 
 }
-
 .leaflet-container a.leaflet-popup-close-button:hover {
-  color: #333 !important; /* Diventa scura al passaggio */
-  text-shadow: none; /* Rimuove l'ombra per pulizia */
-  transform: scale(1.1); /* Leggero zoom */
+  color: #333 !important;
+  text-shadow: none;
+  transform: scale(1.1); 
 }
 
 /* LAYOUT POPUP */
@@ -214,6 +237,8 @@ onBeforeUnmount(() => { if (map) { map.remove(); map = null; } markersMap = {}; 
 .popup-custom button:active { transform: scale(0.95); }
 .btn-action { background: #2ecc71; color: white; }
 .btn-action:disabled { background: #bdc3c7 !important; cursor: not-allowed; }
+
+/* STILE BOTTONE ADOTTA */
 .btn-adopt { background: white; border: 2px solid #e74c3c !important; color: #e74c3c; }
 .btn-adopt:hover { background: #fdedec; }
 .btn-adopt.adopted { background: #e74c3c; color: white; }
