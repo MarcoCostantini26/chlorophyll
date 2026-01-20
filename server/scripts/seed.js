@@ -57,10 +57,10 @@ const seedDB = async () => {
 
     // 1. IL FAMOSO PINO SOFFERENTE (Deve esistere!)
     plantsToCreate.push({
-        name: "Pino Sofferente 🤒",
+        name: "Pino Sofferente",
         category: 'tree', species: 'Pinus Pinea',
         location: getRandomPos(CENTER_LAT, CENTER_LNG, 0.005, 0.005),
-        waterLevel: 5, status: 'critical' // Sta morendo davvero
+        waterLevel: 5, status: 'critical' 
     });
 
     // 2. ALTRI ALBERI
