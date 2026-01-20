@@ -1,8 +1,9 @@
 import { createRouter, createWebHistory } from 'vue-router';
 import DashboardView from '../views/DashboardView.vue';
 import LoginView from '../views/LoginView.vue';
-import ProfileView from '../views/ProfileView.vue'; // Verifica che il nome file sia corretto
-import CommunityView from '../views/CommunityView.vue'; // <--- IMPORTA
+import ProfileView from '../views/ProfileView.vue';
+import CommunityView from '../views/CommunityView.vue';
+import AdminAnalyticsView from '../views/AdminAnalyticsView.vue'; // <--- NUOVO IMPORT
 
 const routes = [
   { 
@@ -23,10 +24,16 @@ const routes = [
     meta: { requiresAuth: true }
   },
   { 
-    path: '/community',         // <--- NUOVA ROTTA
+    path: '/community',
     name: 'Community', 
     component: CommunityView,
     meta: { requiresAuth: true }
+  },
+  { 
+    path: '/admin/analytics',   // <--- NUOVA ROTTA ANALYTICS
+    name: 'AdminAnalytics', 
+    component: AdminAnalyticsView,
+    meta: { requiresAuth: true } // Opzionale: potresti voler controllare anche il ruolo qui
   }
 ];
 
@@ -35,14 +42,25 @@ const router = createRouter({
   routes
 });
 
-// Guardia di Navigazione
+// Guardia di Navigazione Globale
 router.beforeEach((to, from, next) => {
-  // Nota: nel tuo App.vue usi localStorage.setItem('user', ...), quindi qui cerchiamo 'user'
   const user = localStorage.getItem('user'); 
   
+  // Se la rotta richiede auth e non c'è utente -> Login
   if (to.meta.requiresAuth && !user) {
     next('/login');
-  } else {
+  } 
+  // Se l'utente cerca di andare in area admin ma non è city_manager (Opzionale, per sicurezza)
+  else if (to.path.startsWith('/admin') && user) {
+    const userData = JSON.parse(user);
+    if (userData.role !== 'city_manager') {
+      alert("Accesso negato: Area riservata City Manager");
+      next('/'); // Rimanda alla home
+    } else {
+      next();
+    }
+  }
+  else {
     next();
   }
 });

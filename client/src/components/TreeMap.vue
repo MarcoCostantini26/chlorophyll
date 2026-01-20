@@ -213,7 +213,7 @@ onBeforeUnmount(() => { if (map) { map.remove(); map = null; } markersMap = {}; 
 
 .map-wrapper { position: relative; width: 100%; height: 500px; }
 .map-container { height: 100%; width: 100%; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 15px rgba(0,0,0,0.1); border: 4px solid #fff; z-index: 1; }
-.toggle-heatmap-btn { position: absolute; top: 15px; right: 15px; z-index: 1000; background: white; border: 2px solid #2c3e50; color: #2c3e50; padding: 8px 15px; border-radius: 20px; font-weight: bold; cursor: pointer; box-shadow: 0 4px 10px rgba(0,0,0,0.2); transition: all 0.3s ease; font-family: 'Inter', sans-serif; }
+.toggle-heatmap-btn { position: absolute; top: 15px; right: 15px; z-index: 20; background: white; border: 2px solid #2c3e50; color: #2c3e50; padding: 8px 15px; border-radius: 20px; font-weight: bold; cursor: pointer; box-shadow: 0 4px 10px rgba(0,0,0,0.2); transition: all 0.3s ease; font-family: 'Inter', sans-serif; }
 .toggle-heatmap-btn.active { background: #e74c3c; color: white; border-color: #c0392b; box-shadow: 0 0 15px rgba(231, 76, 60, 0.5); }
 
 /* POPUP E RESET LEAFLET */

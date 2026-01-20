@@ -6,12 +6,13 @@ import { io } from 'socket.io-client';
 const socket = io('http://localhost:3000');
 const router = useRouter();
 
+// --- STATO GLOBALE ---
 const trees = ref([]);
 const currentUser = ref(null);
 const isConnected = ref(false);
 const currentWeather = ref('sunny');
 
-// Modali globali
+// --- MODALI GLOBALI ---
 const showLevelUp = ref(false);
 const showAiModal = ref(false);
 const aiResponse = ref('');
@@ -19,7 +20,7 @@ const isAiThinking = ref(false);
 const showBadgeModal = ref(false);
 const lastUnlockedBadge = ref({ name: '', desc: '' });
 
-// Funzioni base
+// --- LOGICA DI BASE (Fetch, Login, Socket) ---
 const fetchTrees = async () => { 
   try {
     const res = await fetch('http://localhost:3000/api/trees'); 
@@ -46,7 +47,7 @@ const handleLogout = () => {
   router.push('/login'); 
 };
 
-// Actions Socket (passate poi via props/emit)
+// --- AZIONI SOCKET GLOBALI ---
 const waterTree = (treeId) => { 
   if(currentUser.value) socket.emit('water_tree', { treeId, userId: currentUser.value._id }); 
 };
@@ -76,12 +77,15 @@ const toggleAdopt = async (treeId) => {
   } catch (e) { console.error(e); }
 };
 
+// --- LIFECYCLE ---
 onMounted(() => {
   const saved = localStorage.getItem('user');
   if (saved) currentUser.value = JSON.parse(saved);
   fetchTrees();
+  
   socket.on('connect', () => isConnected.value = true);
   socket.on('disconnect', () => isConnected.value = false);
+  
   socket.on('tree_updated', (t) => { const idx = trees.value.findIndex(x => x._id === t._id); if (idx !== -1) { trees.value[idx] = t; trees.value = [...trees.value]; } });
   socket.on('trees_refresh', (all) => trees.value = all);
   socket.on('weather_update', (w) => { if (w !== currentWeather.value) currentWeather.value = w; });
@@ -93,6 +97,7 @@ onMounted(() => {
 
 <template>
   <div class="app-root">
+    
     <header class="app-header" v-if="currentUser">
       <div class="header-container">
         <div class="header-left">
@@ -101,9 +106,19 @@ onMounted(() => {
             {{ isConnected ? 'Online' : 'Offline' }}
           </div>
         </div>
+
         <nav class="main-nav">
           <router-link to="/" class="nav-item">🌲 Dashboard</router-link>
           <router-link to="/community" class="nav-item">🌍 Community</router-link>
+          
+          <router-link 
+            v-if="currentUser.role === 'city_manager'" 
+            to="/admin/analytics" 
+            class="nav-item admin-link"
+          >
+            🎛️ Control Room
+          </router-link>
+
           <router-link to="/profile" class="nav-item">👤 Profilo</router-link>
           <button @click="handleLogout" class="nav-item btn-logout">Esci 🚪</button>
         </nav>
@@ -139,11 +154,12 @@ onMounted(() => {
         <div class="ai-body"><div v-if="isAiThinking" class="thinking">...Analisi...</div><p v-else>{{ aiResponse }}</p></div>
       </div>
     </div>
+
   </div>
 </template>
 
 <style>
-/* CSS GLOBALE PULITO - NIENTE OVERFLOW SUL BODY */
+/* CSS GLOBALE */
 html, body {
   margin: 0; padding: 0; width: 100%;
   font-family: 'Inter', sans-serif;
@@ -151,7 +167,7 @@ html, body {
   color: #ecf0f1;
 }
 
-/* Header */
+/* HEADER FISSO */
 .app-header {
   position: fixed; top: 0; left: 0; width: 100%; height: 70px;
   background: #1e1e1e; border-bottom: 2px solid #333;
@@ -161,18 +177,25 @@ html, body {
 .main-content { padding-top: 90px; padding-bottom: 40px; min-height: 100vh; box-sizing: border-box; }
 .content-wrapper { max-width: 1400px; margin: 0 auto; padding: 0 20px; }
 
-/* Stili Header */
+/* NAVIGAZIONE */
 .header-left { display: flex; align-items: center; gap: 15px; }
 .main-title { color: #2ecc71; font-size: 1.5rem; margin: 0; font-weight: 800; } 
 .status-pill { padding: 4px 10px; border-radius: 20px; font-size: 0.75rem; font-weight: bold; color: white; text-transform: uppercase; }
 .online { background: #2ecc71; } .offline { background: #e74c3c; }
+
 .main-nav { display: flex; gap: 20px; align-items: center; }
 .nav-item { text-decoration: none; color: #bdc3c7; font-weight: 600; font-size: 0.95rem; transition: color 0.2s; background: none; border: none; font-family: inherit; cursor: pointer; display: flex; align-items: center; height: 70px; border-bottom: 3px solid transparent; }
-.nav-item:hover, .nav-item.router-link-active { color: #2ecc71; border-bottom-color: #2ecc71; } 
+.nav-item:hover { color: #2ecc71; }
+.nav-item.router-link-active { color: #2ecc71; border-bottom-color: #2ecc71; } 
+
+/* STILE LINK ADMIN */
+.admin-link { color: #9b59b6 !important; }
+.admin-link:hover { color: #8e44ad !important; text-shadow: 0 0 10px rgba(142, 68, 173, 0.4); }
+
 .btn-logout { color: #e74c3c !important; height: auto; border: 1px solid #e74c3c; padding: 6px 14px; border-radius: 20px; font-size: 0.85rem; line-height: 1; border-bottom: 1px solid #e74c3c !important; }
 .btn-logout:hover { background: #e74c3c; color: white !important; }
 
-/* Modali (semplificati per spazio) */
+/* MODALI STILI */
 .ai-modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 2000; display: flex; justify-content: center; align-items: center; backdrop-filter: blur(2px); }
 .ai-modal { background: #2c3e50; color: white; width: 100%; max-width: 400px; border-radius: 15px; overflow: hidden; box-shadow: 0 20px 40px rgba(0,0,0,0.5); animation: slideUp 0.3s ease; }
 .ai-header { background: #8e44ad; color: white; padding: 15px 20px; display: flex; justify-content: space-between; align-items: center; }

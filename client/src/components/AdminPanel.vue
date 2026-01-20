@@ -77,7 +77,6 @@ onUnmounted(() => { if (intervalId) clearInterval(intervalId); });
 </template>
 
 <style scoped>
-/* --- STILI ORIGINALI (Quelli che ti piacevano) --- */
 .admin-dashboard {
   background: white; color: #2c3e50; padding: 20px; border-radius: 12px;
   border: 2px solid #8e44ad;
@@ -112,7 +111,7 @@ li { font-size: 0.8rem; padding: 5px 0; border-bottom: 1px solid #eee; display: 
 .empty { text-align: center; color: #ccc; margin-top: 20px; font-style: italic; font-size: 0.8rem; }
 @keyframes blink { 0% { opacity: 1; } 50% { opacity: 0.5; } 100% { opacity: 1; } }
 
-/* --- NUOVO MODALE (MINIMALE & CENTRATO) --- */
+/* --- MODALE --- */
 .modal-overlay {
   position: fixed; top: 0; left: 0; width: 100%; height: 100%;
   background: rgba(0, 0, 0, 0.5); /* Oscura lo sfondo */
@@ -145,7 +144,7 @@ li { font-size: 0.8rem; padding: 5px 0; border-bottom: 1px solid #eee; display: 
 .btn-cancel:hover { background: #e1e2e6; color: #333; }
 
 .btn-confirm {
-  background: #27ae60; /* VERDE RICHIESTO */
+  background: #27ae60;
   color: white;
   border: none; padding: 8px 16px; border-radius: 6px;
   cursor: pointer; font-weight: 600; font-size: 0.85rem;
