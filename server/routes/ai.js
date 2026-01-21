@@ -1,45 +1,46 @@
 const express = require('express');
 const router = express.Router();
 const Groq = require('groq-sdk');
-const Tree = require('../models/Tree');
 
-// Configurazione AI locale al file (o globale se preferisci)
+// Configurazione AI
 let groq = null;
 if (process.env.GROQ_API_KEY) {
   groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 }
 
-// POST /api/ai/consult
-router.post('/consult', async (req, res) => {
+// POST /api/ai/chat - Chatbot Generico
+router.post('/chat', async (req, res) => {
   try {
-    const { treeId } = req.body;
-    const tree = await Tree.findById(treeId);
-    if (!tree) return res.status(404).json({ error: "Albero non trovato" });
+    const { message, history } = req.body; // Riceviamo il messaggio attuale e la storia (opzionale)
 
-    if (groq) {
-      try {
-        // Prompt migliorato con le categorie
-        const cat = tree.category || 'pianta';
-        const prompt = `Sei Dr. Chlorophyll. Analizza questa ${cat}: "${tree.name}". Specie: ${tree.species}. Acqua/Stato: ${tree.waterLevel}%. Dammi un consiglio breve (max 20 parole) e leggermente sarcastico o divertente su come curarla.`;
-        
-        const chatCompletion = await groq.chat.completions.create({ 
-            messages: [{ "role": "user", "content": prompt }], 
-            model: "llama-3.3-70b-versatile", 
-            temperature: 0.7, 
-            max_tokens: 100 
-        });
-        
-        const aiMessage = chatCompletion.choices[0]?.message?.content || "Nessun consiglio.";
-        return res.json({ message: aiMessage });
-      } catch (aiError) { 
-          console.error("Errore Groq:", aiError.message); 
-      }
+    if (!groq) {
+      return res.json({ message: "Mi dispiace, il mio cervello quantistico (API Key) è spento al momento." });
     }
+
+    // Costruiamo il contesto per l'AI
+    const systemPrompt = {
+      role: "system",
+      content: "Sei Dr. Chlorophyll, un assistente virtuale esperto di botanica, ecologia e foreste urbane per l'app 'Chlorophyll'. Sei simpatico, usi emoji, e rispondi in modo conciso ma utile. Se ti chiedono cose fuori tema (politica, calcio), riporta gentilmente l'argomento sulla natura."
+    };
+
+    // Uniamo il prompt di sistema con la storia della chat (ultimi 4 messaggi per contesto)
+    const conversation = [systemPrompt, ...(history || []), { role: "user", content: message }];
+
+    const chatCompletion = await groq.chat.completions.create({
+      messages: conversation,
+      model: "llama-3.3-70b-versatile",
+      temperature: 0.7,
+      max_tokens: 200
+    });
+
+    const aiResponse = chatCompletion.choices[0]?.message?.content || "Non ho capito, riprova.";
     
-    // Fallback se no API Key o errore
-    let backupMsg = tree.waterLevel < 30 ? "⚠️ Serve un intervento urgente!" : "✅ La pianta sta bene.";
-    res.json({ message: backupMsg });
-  } catch (error) { res.status(500).json({ error: "Errore AI" }); }
+    res.json({ message: aiResponse });
+
+  } catch (error) {
+    console.error("Errore Groq:", error);
+    res.status(500).json({ error: "Errore comunicazione AI" });
+  }
 });
 
 module.exports = router;
