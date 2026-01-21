@@ -2,8 +2,7 @@ import { createRouter, createWebHistory } from 'vue-router';
 import DashboardView from '../views/DashboardView.vue';
 import LoginView from '../views/LoginView.vue';
 import ProfileView from '../views/ProfileView.vue';
-import CommunityView from '../views/CommunityView.vue';
-import AdminAnalyticsView from '../views/AdminAnalyticsView.vue'; // <--- NUOVO IMPORT
+import AdminAnalyticsView from '../views/AdminAnalyticsView.vue';
 
 const routes = [
   { 
@@ -24,16 +23,10 @@ const routes = [
     meta: { requiresAuth: true }
   },
   { 
-    path: '/community',
-    name: 'Community', 
-    component: CommunityView,
-    meta: { requiresAuth: true }
-  },
-  { 
-    path: '/admin/analytics',   // <--- NUOVA ROTTA ANALYTICS
+    path: '/admin/analytics',
     name: 'AdminAnalytics', 
     component: AdminAnalyticsView,
-    meta: { requiresAuth: true } // Opzionale: potresti voler controllare anche il ruolo qui
+    meta: { requiresAuth: true }
   }
 ];
 

@@ -15,7 +15,6 @@ const treesRoutes = require('./routes/trees');
 const usersRoutes = require('./routes/users');
 const adminRoutes = require('./routes/admin');
 const aiRoutes = require('./routes/ai');
-const groupsRoutes = require('./routes/groups'); // <--- 1. NUOVO IMPORT
 
 // Servizio Meteo
 const { startWeatherSimulation, getCurrentWeather } = require('./weatherService');
@@ -52,7 +51,6 @@ app.use('/api/trees', treesRoutes);
 app.use('/api/users', usersRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/ai', aiRoutes);
-app.use('/api/groups', groupsRoutes); // <--- 2. NUOVA ROTTA
 
 // --- LOGICA SOCKET.IO ---
 const calculateStatus = (level) => {

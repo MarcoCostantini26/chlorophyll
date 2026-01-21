@@ -109,7 +109,6 @@ onMounted(() => {
 
         <nav class="main-nav">
           <router-link to="/" class="nav-item">🌲 Dashboard</router-link>
-          <router-link to="/community" class="nav-item">🌍 Community</router-link>
           
           <router-link 
             v-if="currentUser.role === 'city_manager'" 
