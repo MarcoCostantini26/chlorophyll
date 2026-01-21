@@ -6,7 +6,6 @@ const User = require('../models/User');
 router.post('/login', async (req, res) => {
   try {
     const { username } = req.body;
-    // Cerca case-insensitive
     const user = await User.findOne({ username: { $regex: new RegExp(`^${username}$`, 'i') } });
     if (!user) return res.status(404).json({ error: "Utente non trovato" });
     res.json(user);
@@ -24,22 +23,32 @@ router.get('/leaderboard', async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-// PUT /api/users/:id (Aggiorna Avatar)
+// PUT /api/users/:id (Modifica Profilo: Avatar e Username)
 router.put('/:id', async (req, res) => {
   try {
     const { id } = req.params;
-    const { avatar } = req.body;
-    const updatedUser = await User.findByIdAndUpdate(id, { avatar: avatar }, { new: true });
+    const { avatar, username } = req.body; // <--- ORA ACCETTA ANCHE USERNAME
+    
+    const updateData = {};
+    if (avatar) updateData.avatar = avatar;
+    if (username) updateData.username = username;
+
+    // Controlla se username esiste già (se cambiato)
+    if (username) {
+      const exists = await User.findOne({ username, _id: { $ne: id } });
+      if (exists) return res.status(400).json({ error: "Username già in uso!" });
+    }
+
+    const updatedUser = await User.findByIdAndUpdate(id, updateData, { new: true });
     
     if (!updatedUser) return res.status(404).json({ error: "Utente non trovato" });
     
-    // Notifica Socket tramite req.io
     req.io.emit('user_updated', updatedUser); 
     res.json(updatedUser);
-  } catch (e) { res.status(500).json({ error: "Errore server" }); }
+  } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-// POST /api/users/adopt (Adotta/Abbandona)
+// POST /api/users/adopt
 router.post('/adopt', async (req, res) => {
   try {
     const { userId, treeId } = req.body;
@@ -48,25 +57,19 @@ router.post('/adopt', async (req, res) => {
     if (!user) return res.status(404).json({ error: "Utente non trovato" });
 
     if (!user.adoptedTrees) user.adoptedTrees = [];
-
     const index = user.adoptedTrees.indexOf(treeId);
     if (index > -1) {
-      user.adoptedTrees.splice(index, 1); // Rimuovi
+      user.adoptedTrees.splice(index, 1);
     } else {
-      user.adoptedTrees.push(treeId); // Aggiungi
+      user.adoptedTrees.push(treeId);
     }
 
     user.markModified('adoptedTrees');
     await user.save();
     
-    // Notifica Socket
     req.io.emit('user_updated', user);
-    
     res.json(user);
-  } catch (e) {
-    console.error("Errore adozione:", e);
-    res.status(500).json({ error: "Errore adozione" });
-  }
+  } catch (e) { res.status(500).json({ error: "Errore adozione" }); }
 });
 
 module.exports = router;

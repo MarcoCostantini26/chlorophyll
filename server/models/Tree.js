@@ -25,12 +25,6 @@ const TreeSchema = new mongoose.Schema({
     min: 0,
     max: 100
   },
-  health: { 
-    type: Number, 
-    default: 100,
-    min: 0,
-    max: 100
-  },
   status: {
     type: String,
     enum: ['healthy', 'thirsty', 'critical'],

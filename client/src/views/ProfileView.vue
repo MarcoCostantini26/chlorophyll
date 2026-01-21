@@ -1,7 +1,8 @@
 <script setup>
 import UserProfile from '../components/UserProfile.vue';
 
-const props = defineProps(['user']); // Riceve user da App.vue
+// Riceviamo 'trees' da App.vue per mostrare i dettagli delle piante adottate
+const props = defineProps(['user', 'trees']); 
 const emit = defineEmits(['logout', 'update-profile']);
 </script>
 
@@ -9,6 +10,7 @@ const emit = defineEmits(['logout', 'update-profile']);
   <div class="view-container">
     <UserProfile 
       :user="props.user" 
+      :trees="props.trees"
       @back="$router.push('/')" 
       @logout="$emit('logout')"
       @update-profile="(u) => $emit('update-profile', u)"
@@ -17,5 +19,8 @@ const emit = defineEmits(['logout', 'update-profile']);
 </template>
 
 <style scoped>
-.view-container { padding-top: 40px; }
+.view-container { 
+  /* Rimuovi padding extra se gestito globalmente, o lascialo minimo */
+  width: 100%;
+}
 </style>
