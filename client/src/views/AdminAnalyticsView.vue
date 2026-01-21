@@ -8,90 +8,155 @@ ChartJS.register(ArcElement, Tooltip, Legend, BarElement, CategoryScale, LinearS
 const analyticsData = ref(null);
 const errorMsg = ref(null);
 const searchTerm = ref('');
+const tableRef = ref(null);
+
+// --- STATO ORDINAMENTO ---
+const sortKey = ref('waterLevel'); 
+const sortOrder = ref(1); 
+
+// --- STATO FILTRI ATTIVI ---
+const activeFilters = ref({
+  category: null,
+  city: null
+});
+
+// --- FUNZIONI CARICAMENTO INDIRIZZI ---
+const fetchRealAddress = async (lat, lng) => {
+  const cacheKey = `city_${lat}_${lng}`;
+  const cached = localStorage.getItem(cacheKey);
+  if (cached) return cached;
+  try {
+    const url = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`;
+    const res = await fetch(url);
+    const data = await res.json();
+    const city = data.address?.city || data.address?.town || data.address?.village || data.address?.county || 'Fuori Mappa';
+    localStorage.setItem(cacheKey, city);
+    return city;
+  } catch (e) { return 'N/D'; }
+};
+
+const processAddressesInBatches = async (trees) => {
+  const batchSize = 3; 
+  for (let i = 0; i < trees.length; i += batchSize) {
+    const chunk = trees.slice(i, i + batchSize);
+    const promises = chunk.map(async (tree) => {
+      if (tree.location?.lat) tree.city = await fetchRealAddress(tree.location.lat, tree.location.lng);
+      else tree.city = 'No GPS';
+    });
+    await Promise.all(promises);
+  }
+};
 
 const fetchAnalytics = async () => {
   try {
     const res = await fetch('http://localhost:3000/api/admin/analytics');
     if (!res.ok) throw new Error(`Errore Server: ${res.status}`);
-    analyticsData.value = await res.json();
-  } catch (e) { 
-    console.error(e);
-    errorMsg.value = "Impossibile caricare i dati. Assicurati che il server sia attivo.";
-  }
+    const data = await res.json();
+    data.allTrees = data.allTrees.map(tree => ({ ...tree, city: '⏳ ...' }));
+    analyticsData.value = data;
+    processAddressesInBatches(analyticsData.value.allTrees);
+  } catch (e) { console.error(e); errorMsg.value = "Impossibile caricare i dati."; }
 };
 
-// --- GRAFICO 1: STATO SALUTE GLOBALE (Ciambella) ---
+// --- LOGICA ORDINAMENTO ---
+const sortBy = (key) => {
+  if (sortKey.value === key) sortOrder.value *= -1; 
+  else { sortKey.value = key; sortOrder.value = 1; }
+  if (tableRef.value) tableRef.value.scrollTop = 0;
+};
+
+// --- COMPUTED: LISTE PER I MENU A TENDINA ---
+const uniqueCategories = computed(() => {
+  if (!analyticsData.value || !analyticsData.value.categories) return [];
+  return Object.keys(analyticsData.value.categories).sort();
+});
+
+const uniqueCities = computed(() => {
+  if (!analyticsData.value || !analyticsData.value.allTrees) return [];
+  // Estrae tutte le città, rimuove duplicati e rimuove lo stato di caricamento
+  const cities = analyticsData.value.allTrees
+    .map(t => t.city)
+    .filter(c => c !== '⏳ ...'); // Non mostrare "Clessidra" nel menu
+  return [...new Set(cities)].sort();
+});
+
+// --- GRAFICI ---
 const statusChartData = computed(() => {
   if (!analyticsData.value) return { labels: [], datasets: [] };
   const d = analyticsData.value;
   return {
-    labels: ['Sani (Verde)', 'Assetati (Giallo)', 'Critici (Rosso)'],
+    labels: ['Sani', 'Assetati', 'Critici'],
     datasets: [{
       data: [d.healthyTrees, d.thirstyTrees, d.criticalTrees],
-      backgroundColor: ['#2ecc71', '#f1c40f', '#e74c3c'],
-      hoverOffset: 10,
-      borderWidth: 0
+      backgroundColor: ['#2ecc71', '#f1c40f', '#e74c3c'], borderWidth: 0
     }]
   };
 });
 
-// --- GRAFICO 2: CATEGORIE IMPILATE (Stacked Bar) ---
 const categoryChartData = computed(() => {
-  if (!analyticsData.value) return { labels: [], datasets: [] };
-  
-  const cats = analyticsData.value.categories || {};
-  const labels = Object.keys(cats).map(k => k.toUpperCase()); // Es: TREE, BUSH, POTTED
-  
-  // Estraiamo i dati per ogni stato
-  const healthyData = Object.values(cats).map(c => c.healthy);
-  const thirstyData = Object.values(cats).map(c => c.thirsty);
-  const criticalData = Object.values(cats).map(c => c.critical);
-
+  if (!analyticsData.value?.categories) return { labels: [], datasets: [] };
+  const cats = analyticsData.value.categories;
+  const labels = Object.keys(cats).map(k => k.toUpperCase()); 
   return {
     labels,
     datasets: [
-      {
-        label: 'Sani',
-        data: healthyData,
-        backgroundColor: '#2ecc71', // Verde
-        barPercentage: 0.6
-      },
-      {
-        label: 'Assetati',
-        data: thirstyData,
-        backgroundColor: '#f1c40f', // Giallo
-        barPercentage: 0.6
-      },
-      {
-        label: 'Critici',
-        data: criticalData,
-        backgroundColor: '#e74c3c', // Rosso
-        barPercentage: 0.6
-      }
+      { label: 'Sani', data: Object.values(cats).map(c => c.healthy||0), backgroundColor: '#2ecc71' },
+      { label: 'Assetati', data: Object.values(cats).map(c => c.thirsty||0), backgroundColor: '#f1c40f' },
+      { label: 'Critici', data: Object.values(cats).map(c => c.critical||0), backgroundColor: '#e74c3c' }
     ]
   };
 });
 
-// Opzioni per attivare lo "Stacking"
-const stackedOptions = {
-  responsive: true,
-  maintainAspectRatio: false,
-  scales: {
-    x: { stacked: true },
-    y: { stacked: true }
-  },
-  plugins: {
-    legend: { position: 'top' }
+const stackedOptions = computed(() => {
+  let maxY = 10; 
+  if (analyticsData.value?.categories) {
+    const totals = Object.values(analyticsData.value.categories).map(c => (c.healthy||0)+(c.thirsty||0)+(c.critical||0));
+    maxY = Math.max(0, ...totals) + 1; 
   }
-};
+  return {
+    responsive: true, maintainAspectRatio: false,
+    scales: { x: { stacked: true, grid: {display:false} }, y: { stacked: true, beginAtZero: true, max: maxY, ticks: {stepSize:1, precision:0} } },
+    plugins: { legend: { position: 'top' } }
+  };
+});
 
-// Tabella Filtrata
+// --- TABELLA SMART ---
 const filteredTrees = computed(() => {
   if (!analyticsData.value) return [];
-  return analyticsData.value.allTrees.filter(t => 
-    t.name.toLowerCase().includes(searchTerm.value.toLowerCase()) || 
-    (t.category && t.category.toLowerCase().includes(searchTerm.value.toLowerCase()))
-  );
+  
+  let result = analyticsData.value.allTrees.filter(t => {
+    // 1. RICERCA LIBERA
+    const matchesSearch = 
+      t.name.toLowerCase().includes(searchTerm.value.toLowerCase()) || 
+      (t.category && t.category.toLowerCase().includes(searchTerm.value.toLowerCase())) ||
+      t.status.toLowerCase().includes(searchTerm.value.toLowerCase()) ||
+      t.city.toLowerCase().includes(searchTerm.value.toLowerCase());
+
+    // 2. FILTRO TIPO (Dropdown)
+    const matchesCategory = activeFilters.value.category ? t.category === activeFilters.value.category : true;
+    
+    // 3. FILTRO CITTÀ (Dropdown)
+    const matchesCity = activeFilters.value.city ? t.city === activeFilters.value.city : true;
+
+    return matchesSearch && matchesCategory && matchesCity;
+  });
+
+  return result.sort((a, b) => {
+    let valA = a[sortKey.value];
+    let valB = b[sortKey.value];
+
+    if (sortKey.value === 'status') {
+      const statusWeight = { 'critical': 1, 'thirsty': 2, 'healthy': 3 };
+      return ((statusWeight[valA]||0) - (statusWeight[valB]||0)) * sortOrder.value;
+    }
+    if (typeof valA === 'string') {
+      valA = valA.toLowerCase(); valB = valB.toLowerCase();
+      if (valA < valB) return -1 * sortOrder.value;
+      if (valA > valB) return 1 * sortOrder.value;
+      return 0;
+    }
+    return (valA - valB) * sortOrder.value;
+  });
 });
 
 onMounted(fetchAnalytics);
@@ -99,149 +164,142 @@ onMounted(fetchAnalytics);
 
 <template>
   <div class="analytics-page">
-    
     <div class="header-row">
-      <div>
-        <h1>🎛️ Control Room</h1>
-        <p>Panoramica completa dell'ecosistema urbano.</p>
-      </div>
+      <div><h1>🎛️ Control Room</h1><p>Panoramica completa dell'ecosistema urbano.</p></div>
       <button class="btn-back" @click="$router.push('/')">↩ Torna alla Dashboard</button>
     </div>
 
-    <div v-if="errorMsg" class="error-box">
-      ⚠️ {{ errorMsg }}
-    </div>
+    <div v-if="errorMsg" class="error-box">⚠️ {{ errorMsg }}</div>
 
     <div v-else-if="analyticsData" class="grid-layout">
-      
-      <div class="kpi-card">
-        <h3>Totale Piante</h3>
-        <span class="val">{{ analyticsData.totalTrees }}</span>
-      </div>
-      <div class="kpi-card">
-        <h3>Media Idrica</h3>
-        <span class="val blue">{{ analyticsData.avgWater }}%</span>
-      </div>
-      <div class="kpi-card">
-        <h3>Criticità</h3>
-        <span class="val red">{{ analyticsData.criticalTrees }}</span>
-      </div>
-      <div class="kpi-card">
-        <h3>In Salute</h3>
-        <span class="val green">{{ analyticsData.healthyTrees }}</span>
-      </div>
+      <div class="kpi-card"><h3>Totale Piante</h3><span class="val">{{ analyticsData.totalTrees }}</span></div>
+      <div class="kpi-card"><h3>Media Idrica</h3><span class="val blue">{{ analyticsData.avgWater }}%</span></div>
+      <div class="kpi-card"><h3>Criticità</h3><span class="val red">{{ analyticsData.criticalTrees }}</span></div>
+      <div class="kpi-card"><h3>In Salute</h3><span class="val green">{{ analyticsData.healthyTrees }}</span></div>
 
       <div class="chart-card">
         <h3>Stato Salute (Globale)</h3>
-        <div class="chart-wrapper">
-          <Doughnut :data="statusChartData" :options="{ responsive: true, maintainAspectRatio: false }" />
-        </div>
+        <div class="chart-wrapper"><Doughnut :data="statusChartData" :options="{ responsive: true, maintainAspectRatio: false }" /></div>
       </div>
-
       <div class="chart-card">
         <h3>Dettaglio per Categoria</h3>
-        <div class="chart-wrapper">
-          <Bar :data="categoryChartData" :options="stackedOptions" />
-        </div>
+        <div class="chart-wrapper"><Bar :data="categoryChartData" :options="stackedOptions" /></div>
       </div>
 
       <div class="table-card full-width">
         <div class="table-header">
           <h3>📂 Database Piante</h3>
-          <input v-model="searchTerm" placeholder="🔍 Cerca nome o tipo..." class="search-input" />
+          <input v-model="searchTerm" placeholder="🔍 Cerca..." class="search-input" />
         </div>
-        <div class="table-container">
+        
+        <div class="table-container" ref="tableRef">
           <table>
             <thead>
               <tr>
-                <th>Nome</th>
-                <th>Tipo</th>
-                <th>Stato</th>
-                <th>Livello H2O</th>
-                <th>Coordinate</th>
+                <th @click="sortBy('name')" class="sortable">
+                  Nome <span v-if="sortKey === 'name'">{{ sortOrder === 1 ? '🔼' : '🔽' }}</span>
+                </th>
+                
+                <th>
+                  <div class="th-flex">
+                    <span>Tipo</span>
+                    <select v-model="activeFilters.category" class="mini-select" @click.stop>
+                      <option :value="null">Tutti</option>
+                      <option v-for="cat in uniqueCategories" :key="cat" :value="cat">{{ cat }}</option>
+                    </select>
+                  </div>
+                </th>
+                
+                <th @click="sortBy('status')" class="sortable">
+                  Stato <span v-if="sortKey === 'status'">{{ sortOrder === 1 ? '🔼' : '🔽' }}</span>
+                </th>
+                
+                <th @click="sortBy('waterLevel')" class="sortable">
+                  H2O % <span v-if="sortKey === 'waterLevel'">{{ sortOrder === 1 ? '🔼' : '🔽' }}</span>
+                </th>
+                
+                <th>
+                  <div class="th-flex">
+                    <span>Città</span>
+                    <select v-model="activeFilters.city" class="mini-select" @click.stop>
+                      <option :value="null">Tutte</option>
+                      <option v-for="city in uniqueCities" :key="city" :value="city">{{ city }}</option>
+                    </select>
+                  </div>
+                </th>
               </tr>
             </thead>
             <tbody>
               <tr v-for="tree in filteredTrees" :key="tree._id">
                 <td><strong>{{ tree.name }}</strong></td>
                 <td><span class="badge-cat">{{ tree.category || 'tree' }}</span></td>
+                <td><span class="status-dot" :class="tree.status"></span> {{ tree.status }}</td>
                 <td>
-                  <span class="status-dot" :class="tree.status"></span> 
-                  {{ tree.status === 'healthy' ? 'Sano' : tree.status === 'thirsty' ? 'Assetato' : 'Critico' }}
+                  <div class="mini-bar-bg"><div class="mini-bar-fill" :style="{ width: tree.waterLevel + '%', background: tree.waterLevel < 30 ? '#e74c3c' : '#2ecc71' }"></div></div>
+                  <strong :class="{ 'red-text': tree.waterLevel < 30 }">{{ Math.round(tree.waterLevel) }}%</strong>
                 </td>
-                <td>
-                  <div class="mini-bar-bg">
-                    <div class="mini-bar-fill" :style="{ width: tree.waterLevel + '%', background: tree.waterLevel < 30 ? '#e74c3c' : '#2ecc71' }"></div>
-                  </div>
-                  <small>{{ Math.round(tree.waterLevel) }}%</small>
+                <td class="city-text">
+                  <span v-if="tree.city === '⏳ ...'" class="loading-pulse">⏳ ...</span>
+                  <span v-else>📍 {{ tree.city }}</span>
                 </td>
-                <td class="coord-text">{{ tree.location.lat.toFixed(4) }}, {{ tree.location.lng.toFixed(4) }}</td>
+              </tr>
+              <tr v-if="filteredTrees.length === 0">
+                <td colspan="5" style="text-align:center; padding: 20px; color:#95a5a6;">
+                  Nessun risultato.
+                </td>
               </tr>
             </tbody>
           </table>
         </div>
       </div>
-
     </div>
-
-    <div v-else class="loading-state">
-      <div class="spinner"></div>
-      <p>Caricamento dati in corso...</p>
-    </div>
-
+    <div v-else class="loading-state"><div class="spinner"></div><p>Caricamento dati...</p></div>
   </div>
 </template>
 
 <style scoped>
-.analytics-page { 
-  padding: 40px; 
-  padding-top: 10px; 
-  max-width: 1400px; 
-  margin: 0 auto; 
-  font-family: 'Inter', sans-serif; 
-  color: #2c3e50; 
-}
-
+.analytics-page { padding: 40px; padding-top: 10px; max-width: 1400px; margin: 0 auto; font-family: 'Inter', sans-serif; color: #2c3e50; }
 .header-row { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 30px; border-bottom: 2px solid #eee; padding-bottom: 20px; }
 .header-row h1 { margin: 0; font-size: 2rem; color: #8e44ad; }
-.header-row p { margin: 5px 0 0 0; color: #7f8c8d; }
-.btn-back { background: #ecf0f1; border: none; padding: 10px 20px; border-radius: 8px; cursor: pointer; font-weight: bold; color: #7f8c8d; transition: background 0.2s; }
+.btn-back { background: #ecf0f1; border: none; padding: 10px 20px; border-radius: 8px; cursor: pointer; font-weight: bold; color: #7f8c8d; }
 .btn-back:hover { background: #bdc3c7; color: white; }
-
 .error-box { background: #fdedec; color: #c0392b; padding: 20px; border-radius: 8px; border: 1px solid #e74c3c; text-align: center; font-weight: bold; }
-
 .grid-layout { display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px; }
 .full-width { grid-column: span 4; }
-
-/* KPI */
 .kpi-card { background: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); text-align: center; border: 1px solid #eee; }
-.kpi-card h3 { margin: 0 0 10px 0; color: #95a5a6; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 1px; }
 .kpi-card .val { font-size: 2.2rem; font-weight: 800; color: #2c3e50; }
-.kpi-card .val.green { color: #2ecc71; }
-.kpi-card .val.red { color: #e74c3c; }
-.kpi-card .val.blue { color: #3498db; }
-
-/* CHARTS */
+.kpi-card .val.green { color: #2ecc71; } .kpi-card .val.red { color: #e74c3c; } .kpi-card .val.blue { color: #3498db; }
 .chart-card { background: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); grid-column: span 2; display: flex; flex-direction: column; border: 1px solid #eee; }
-.chart-card h3 { margin-bottom: 15px; color: #2c3e50; font-size: 1rem; font-weight: bold; text-align: center; }
 .chart-wrapper { flex: 1; min-height: 250px; position: relative; }
-
-/* TABLE */
 .table-card { background: white; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); overflow: hidden; border: 1px solid #eee; }
 .table-header { padding: 15px 20px; background: #f9f9f9; border-bottom: 1px solid #eee; display: flex; justify-content: space-between; align-items: center; }
 .search-input { padding: 8px 12px; border: 1px solid #ddd; border-radius: 6px; width: 250px; outline: none; }
-.table-container { max-height: 400px; overflow-y: auto; }
+.table-container { max-height: 400px; overflow-y: auto; scroll-behavior: smooth; }
 table { width: 100%; border-collapse: collapse; }
-th { text-align: left; padding: 12px 20px; background: #fff; position: sticky; top: 0; color: #95a5a6; font-size: 0.75rem; text-transform: uppercase; border-bottom: 2px solid #f0f0f0; z-index: 10; }
+th { text-align: left; padding: 12px 20px; background: #fff; position: sticky; top: 0; color: #95a5a6; font-size: 0.75rem; text-transform: uppercase; border-bottom: 2px solid #f0f0f0; z-index: 10; user-select: none; }
+
+th.sortable { cursor: pointer; transition: background 0.2s; }
+th.sortable:hover { background: #f1f2f6; color: #2c3e50; }
+
+/* STILE DROPDOWN MINI */
+.th-flex { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.mini-select {
+  padding: 3px 6px; border-radius: 4px; border: 1px solid #ccc;
+  font-size: 0.75rem; color: #2c3e50; background: white; cursor: pointer;
+  outline: none; font-family: inherit; font-weight: bold;
+}
+.mini-select:hover { border-color: #3498db; }
+
 td { padding: 12px 20px; border-bottom: 1px solid #f9f9f9; font-size: 0.9rem; color: #34495e; vertical-align: middle; }
 .badge-cat { background: #eafaf1; color: #27ae60; padding: 3px 8px; border-radius: 10px; font-size: 0.7rem; font-weight: bold; text-transform: uppercase; }
 .status-dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 5px; }
 .status-dot.healthy { background: #2ecc71; } .status-dot.thirsty { background: #f1c40f; } .status-dot.critical { background: #e74c3c; }
-.mini-bar-bg { width: 100px; height: 6px; background: #eee; border-radius: 3px; display: inline-block; margin-right: 10px; vertical-align: middle; }
+.mini-bar-bg { width: 80px; height: 6px; background: #eee; border-radius: 3px; display: inline-block; margin-right: 10px; vertical-align: middle; }
 .mini-bar-fill { height: 100%; border-radius: 3px; }
-.coord-text { font-family: monospace; color: #bdc3c7; font-size: 0.8rem; }
-
-/* LOADING */
+.red-text { color: #e74c3c; font-weight: bold; }
+.city-text { font-weight: 500; color: #8e44ad; }
+.loading-pulse { font-style: italic; color: #95a5a6; animation: pulse 1s infinite; }
+@keyframes pulse { 0% { opacity: 0.6; } 50% { opacity: 1; } 100% { opacity: 0.6; } }
 .loading-state { text-align: center; padding: 50px; color: #95a5a6; }
 .spinner { width: 40px; height: 40px; border: 4px solid #f3f3f3; border-top: 4px solid #8e44ad; border-radius: 50%; animation: spin 1s linear infinite; margin: 0 auto 10px; }
 @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
