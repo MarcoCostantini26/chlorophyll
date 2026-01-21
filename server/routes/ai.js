@@ -8,32 +8,70 @@ if (process.env.GROQ_API_KEY) {
   groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 }
 
-// POST /api/ai/chat - Chatbot Generico
+// POST /api/ai/chat
 router.post('/chat', async (req, res) => {
   try {
-    const { message, history } = req.body; // Riceviamo il messaggio attuale e la storia (opzionale)
+    const { message, history, context } = req.body;
 
     if (!groq) {
-      return res.json({ message: "Mi dispiace, il mio cervello quantistico (API Key) è spento al momento." });
+      return res.json({ message: "Il mio cervello quantistico è offline (Manca API Key)." });
     }
 
-    // Costruiamo il contesto per l'AI
+    // --- COSTRUZIONE DEL CONTESTO (DATI) ---
+    let weatherString = "Sconosciuto";
+    let treesString = "Nessuna pianta trovata.";
+
+    if (context) {
+      weatherString = context.weather 
+        ? (context.weather === 'rainy' ? 'Pioggia 🌧️' : context.weather === 'sunny' ? 'Soleggiato ☀️' : 'Nuvoloso ☁️')
+        : "Sconosciuto";
+      
+      if (context.trees && context.trees.length > 0) {
+        treesString = context.trees.map(t => 
+          `- ${t.name} (${t.category}): H2O ${t.waterLevel}% [Stato: ${t.status}]`
+        ).join('\n');
+      }
+    }
+
+    // --- IL NUOVO "CERVELLO" (SYSTEM PROMPT AVANZATO) ---
     const systemPrompt = {
       role: "system",
-      content: "Sei Dr. Chlorophyll, un assistente virtuale esperto di botanica, ecologia e foreste urbane per l'app 'Chlorophyll'. Sei simpatico, usi emoji, e rispondi in modo conciso ma utile. Se ti chiedono cose fuori tema (politica, calcio), riporta gentilmente l'argomento sulla natura."
+      content: `
+        Sei Dr. Chlorophyll, un botanico virtuale eccentrico, saggio e premuroso dell'app 'Chlorophyll'.
+        Non sei un robot che legge dati, sei un "Dottore delle Piante".
+
+        DATI ATTUALI:
+        -----------------------
+        Meteo: ${weatherString}
+        Pazienti (Piante):
+        ${treesString}
+        -----------------------
+
+        LINEE GUIDA PER LE RISPOSTE:
+        1. NON ripetere mai i dati a elenco (es. non dire "Gino ha il 50%"). INTERPRETA i dati.
+        2. Incrocia sempre TIPO DI PIANTA + METEO + STATO.
+           - Esempio: Se è un Cactus e piove: "Per fortuna non l'hai innaffiato, i cactus odiano l'umidità!"
+           - Esempio: Se è una Quercia e c'è il sole: "Con questo sole la quercia berrà molto, controllala spesso."
+           - Esempio: Se è "Healthy" ma l'acqua è al 50%: "Sta bene, ma non farla scendere troppo."
+        3. Se l'utente chiede "Come stanno le mie piante?", fai un riassunto generale emotivo (es. "La maggior parte sta alla grande, ma Gino mi preoccupa un po'...").
+        4. Usa un tono colloquiale, usa emoji, sii breve (max 3 frasi).
+        5. Se una pianta è CRITICA (<30%), sii allarmista e drammatico! 🚑
+
+        Rispondi alla domanda dell'utente basandoti su queste regole.
+      `
     };
 
-    // Uniamo il prompt di sistema con la storia della chat (ultimi 4 messaggi per contesto)
+    // Uniamo la storia della conversazione
     const conversation = [systemPrompt, ...(history || []), { role: "user", content: message }];
 
     const chatCompletion = await groq.chat.completions.create({
       messages: conversation,
       model: "llama-3.3-70b-versatile",
-      temperature: 0.7,
-      max_tokens: 200
+      temperature: 0.8, // Aumentata creatività (da 0.7 a 0.8)
+      max_tokens: 350
     });
 
-    const aiResponse = chatCompletion.choices[0]?.message?.content || "Non ho capito, riprova.";
+    const aiResponse = chatCompletion.choices[0]?.message?.content || "Mmm, le mie foglie non captano il segnale. Riprova.";
     
     res.json({ message: aiResponse });
 

@@ -110,7 +110,11 @@ onMounted(() => {
       </div>
     </main>
     
-    <AiChatFab v-if="currentUser && currentUser.role !== 'city_manager'" />
+    <AiChatFab 
+      v-if="currentUser && currentUser.role !== 'city_manager'" 
+      :trees="trees"            
+      :weather="currentWeather"
+    />
 
     <div v-if="showLevelUp" class="level-up-modal">🌟 LEVEL UP! 🌟</div>
     <div v-if="showBadgeModal" class="badge-modal">
