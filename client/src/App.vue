@@ -1,8 +1,11 @@
 <script setup>
-import { ref, onMounted } from 'vue';
+import { ref, onMounted, computed, nextTick } from 'vue'; // Importa nextTick
 import { useRouter } from 'vue-router';
 import { io } from 'socket.io-client';
-import AiChatFab from './components/AiChatFab.vue'; // <--- NUOVO IMPORT
+
+// IMPORTA I WIDGET
+import UserChatWidget from './components/UserChatWidget.vue';
+import AdminChatWidget from './components/AdminChatWidget.vue';
 
 const socket = io('http://localhost:3000');
 const router = useRouter();
@@ -12,42 +15,72 @@ const currentUser = ref(null);
 const isConnected = ref(false);
 const currentWeather = ref('sunny');
 
-// Modali rimasti (LevelUp e Badge)
 const showLevelUp = ref(false);
 const showBadgeModal = ref(false);
 const lastUnlockedBadge = ref({ name: '', desc: '' });
 
-// Funzione profilo
+// --- TRUCCO DEL BLINK ---
+// Questa variabile serve a "uccidere" e "resuscitare" i widget
+const isWidgetAlive = ref(true);
+
+// --- LOGICA REATTIVA ---
+const isUser = computed(() => currentUser.value && currentUser.value.role !== 'city_manager');
+const isAdmin = computed(() => currentUser.value && currentUser.value.role === 'city_manager');
+
+// --- GESTIONE STATO ---
 const handleProfileUpdate = (updatedUser) => {
   currentUser.value = updatedUser; 
   localStorage.setItem('user', JSON.stringify(updatedUser)); 
 };
 
-// Funzioni base
+// --- LOGIN CON BLINK ---
+const handleLoginSuccess = async (user) => { 
+  // 1. Spegni i widget
+  isWidgetAlive.value = false;
+  
+  // 2. Aggiorna l'utente
+  currentUser.value = user; 
+  localStorage.setItem('user', JSON.stringify(user));
+  
+  // 3. Aspetta che Vue abbia aggiornato il DOM (widget rimossi)
+  await nextTick();
+  
+  // 4. Riaccendi i widget e cambia pagina
+  isWidgetAlive.value = true;
+  router.push('/');
+};
+
+// --- LOGOUT SICURO ---
+const handleLogout = async () => { 
+  console.log("LOGOUT INIZIATO");
+
+  // 1. Rimuovi l'utente dal localStorage (così se ricarichi sei sloggato)
+  localStorage.removeItem('user');
+
+  // 2. NAVIGA PRIMA DI RESETTARE LA VARIABILE!
+  // Questo è il trucco: andiamo via dalla Dashboard finché i dati ci sono ancora.
+  // Così la Dashboard non crasha.
+  await router.push('/login'); 
+  
+  // 3. ORA che siamo al sicuro nella login page, possiamo distruggere l'utente
+  isWidgetAlive.value = false; // Spegni widget
+  currentUser.value = null;    // Pulisci variabile reattiva
+  
+  // 4. Reset finale per i widget
+  await nextTick();
+  isWidgetAlive.value = true;
+};
+
+// --- DATA FETCHING ---
 const fetchTrees = async () => { 
   try {
     const res = await fetch('http://localhost:3000/api/trees'); 
     trees.value = await res.json(); 
-  } catch (e) { console.error("Errore fetch alberi", e); }
+  } catch (e) { console.error(e); }
 };
 
-const handleLoginSuccess = (user) => { 
-  handleProfileUpdate(user);
-  if (Notification.permission === 'default') Notification.requestPermission();
-  router.push('/');
-};
-
-const handleLogout = () => { 
-  currentUser.value = null; 
-  localStorage.removeItem('user');
-  router.push('/login'); 
-};
-
-// Socket azioni
 const waterTree = (treeId) => { if(currentUser.value) socket.emit('water_tree', { treeId, userId: currentUser.value._id }); };
 const forceWater = ({id, amt}) => { socket.emit('admin_force_water', { treeId: id, amount: amt }); };
-
-// Adozione
 const toggleAdopt = async (treeId) => {
   if (!currentUser.value) return;
   try {
@@ -59,10 +92,11 @@ const toggleAdopt = async (treeId) => {
   } catch (e) { console.error(e); }
 };
 
-// Lifecycle
 onMounted(() => {
   const saved = localStorage.getItem('user');
-  if (saved) currentUser.value = JSON.parse(saved);
+  if (saved) {
+    try { currentUser.value = JSON.parse(saved); } catch (e) { localStorage.removeItem('user'); }
+  }
   fetchTrees();
   socket.on('connect', () => isConnected.value = true);
   socket.on('disconnect', () => isConnected.value = false);
@@ -86,7 +120,7 @@ onMounted(() => {
         </div>
         <nav class="main-nav">
           <router-link to="/" class="nav-item">🌲 Dashboard</router-link>
-          <router-link v-if="currentUser.role === 'city_manager'" to="/admin/analytics" class="nav-item admin-link">🎛️ Control Room</router-link>
+          <router-link v-if="isAdmin" to="/admin/analytics" class="nav-item admin-link">🎛️ Control Room</router-link>
           <router-link to="/profile" class="nav-item">👤 Profilo</router-link>
           <button @click="handleLogout" class="nav-item btn-logout">Esci 🚪</button>
         </nav>
@@ -110,11 +144,21 @@ onMounted(() => {
       </div>
     </main>
     
-    <AiChatFab 
-      v-if="currentUser && currentUser.role !== 'city_manager'" 
-      :trees="trees"            
-      :weather="currentWeather"
-    />
+    <template v-if="isWidgetAlive">
+      
+      <UserChatWidget 
+        v-if="isUser" 
+        :key="'user-' + currentUser._id"
+        :trees="trees" 
+        :weather="currentWeather"
+      />
+
+      <AdminChatWidget 
+        v-if="isAdmin"
+        :key="'admin-' + currentUser._id"
+      />
+      
+    </template>
 
     <div v-if="showLevelUp" class="level-up-modal">🌟 LEVEL UP! 🌟</div>
     <div v-if="showBadgeModal" class="badge-modal">
@@ -125,19 +169,9 @@ onMounted(() => {
 </template>
 
 <style>
-/* CSS GLOBALE RESTA UGUALE A PRIMA */
-/* Incolla qui il CSS che avevi prima (html, body, header, ecc...) */
-html, body {
-  margin: 0; padding: 0; width: 100%;
-  font-family: 'Inter', sans-serif;
-  background-color: #121212; 
-  color: #ecf0f1;
-}
-.app-header {
-  position: fixed; top: 0; left: 0; width: 100%; height: 70px;
-  background: #1e1e1e; border-bottom: 2px solid #333;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.3); z-index: 1000;
-}
+/* CSS INVARIATO */
+html, body { margin: 0; padding: 0; width: 100%; font-family: 'Inter', sans-serif; background-color: #121212; color: #ecf0f1; }
+.app-header { position: fixed; top: 0; left: 0; width: 100%; height: 70px; background: #1e1e1e; border-bottom: 2px solid #333; box-shadow: 0 4px 12px rgba(0,0,0,0.3); z-index: 1000; }
 .header-container { display: flex; justify-content: space-between; align-items: center; height: 100%; padding: 0 30px; max-width: 1400px; margin: 0 auto; }
 .main-content { padding-top: 90px; padding-bottom: 40px; min-height: 100vh; box-sizing: border-box; }
 .content-wrapper { max-width: 1400px; margin: 0 auto; padding: 0 20px; }

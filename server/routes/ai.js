@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const Groq = require('groq-sdk');
+const Tree = require('../models/Tree');
 
 // Configurazione AI
 let groq = null;
@@ -8,77 +9,117 @@ if (process.env.GROQ_API_KEY) {
   groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 }
 
-// POST /api/ai/chat
+// --- ROTTA 1: CHATBOT INTELLIGENTE (USER + ADMIN) ---
 router.post('/chat', async (req, res) => {
   try {
-    const { message, history, context } = req.body;
+    // Riceviamo isAdmin per decidere la personalità
+    const { message, history, context, isAdmin } = req.body;
 
     if (!groq) {
-      return res.json({ message: "Il mio cervello quantistico è offline (Manca API Key)." });
+      return res.json({ message: "Mi dispiace, il mio cervello (API Key) è spento al momento." });
     }
 
-    // --- COSTRUZIONE DEL CONTESTO (DATI) ---
-    let weatherString = "Sconosciuto";
-    let treesString = "Nessuna pianta trovata.";
+    // 1. DEFINIZIONE PERSONALITÀ (SYSTEM PROMPT)
+    let systemPromptContent = "";
 
-    if (context) {
-      weatherString = context.weather 
-        ? (context.weather === 'rainy' ? 'Pioggia 🌧️' : context.weather === 'sunny' ? 'Soleggiato ☀️' : 'Nuvoloso ☁️')
-        : "Sconosciuto";
-      
-      if (context.trees && context.trees.length > 0) {
-        treesString = context.trees.map(t => 
-          `- ${t.name} (${t.category}): H2O ${t.waterLevel}% [Stato: ${t.status}]`
-        ).join('\n');
-      }
+    if (isAdmin) {
+      // --- MODALITÀ ADMIN: CITY BRAIN ---
+      systemPromptContent = `
+        Sei "City Brain", l'intelligenza artificiale operativa per la gestione del verde urbano.
+        Sei analitico, preciso, professionale e orientato ai dati. Evita troppe emoji o toni scherzosi.
+        
+        DATI IN TEMPO REALE DELLA CITTÀ:
+        - Totale Alberi: ${context?.totalTrees || 'N/D'}
+        - Piante Critiche (Urgenti): ${context?.criticalTrees || 0}
+        - Piante Assetate: ${context?.thirstyTrees || 0}
+        - Piante Sane: ${context?.healthyTrees || 0}
+        - Livello Idrico Medio: ${context?.avgWater || 0}%
+        
+        OBIETTIVI:
+        1. Se l'admin chiede un riepilogo, fornisci i dati critici.
+        2. Se chiede consigli strategici, suggerisci interventi basati sulle zone critiche.
+        3. Mantieni risposte concise e dirette.
+      `;
+    } else {
+      // --- MODALITÀ UTENTE: DR. CHLOROPHYLL ---
+      systemPromptContent = `
+        Sei Dr. Chlorophyll 🌿, un esperto botanico simpatico, empatico e leggermente ironico.
+        Parli con un cittadino ("Green Guardian") che ha adottato degli alberi.
+        
+        CONTESTO UTENTE:
+        - Meteo attuale: ${context?.weather || 'N/D'}
+        - Le sue piante: ${JSON.stringify(context?.trees_summary || [])}
+        
+        OBIETTIVI:
+        1. Rispondi in modo amichevole e motivante.
+        2. Usa emoji pertinenti (🌿, 💧, 🌞).
+        3. Dai consigli pratici ma brevi sulla cura delle piante basandoti sul meteo e stato dell'albero.
+      `;
     }
 
-    // --- IL NUOVO "CERVELLO" (SYSTEM PROMPT AVANZATO) ---
-    const systemPrompt = {
-      role: "system",
-      content: `
-        Sei Dr. Chlorophyll, un botanico virtuale eccentrico, saggio e premuroso dell'app 'Chlorophyll'.
-        Non sei un robot che legge dati, sei un "Dottore delle Piante".
+    // 2. PULIZIA STORIA (Fix per l'errore "property 'text' is unsupported")
+    // Groq accetta solo 'content', non 'text'. Mappiamo tutto per sicurezza.
+    const cleanHistory = (history || []).map(msg => ({
+      role: msg.role,
+      content: msg.content || msg.text || "" 
+    }));
 
-        DATI ATTUALI:
-        -----------------------
-        Meteo: ${weatherString}
-        Pazienti (Piante):
-        ${treesString}
-        -----------------------
+    // 3. COSTRUZIONE CONVERSAZIONE
+    const conversation = [
+      { role: "system", content: systemPromptContent },
+      ...cleanHistory,
+      { role: "user", content: message }
+    ];
 
-        LINEE GUIDA PER LE RISPOSTE:
-        1. NON ripetere mai i dati a elenco (es. non dire "Gino ha il 50%"). INTERPRETA i dati.
-        2. Incrocia sempre TIPO DI PIANTA + METEO + STATO.
-           - Esempio: Se è un Cactus e piove: "Per fortuna non l'hai innaffiato, i cactus odiano l'umidità!"
-           - Esempio: Se è una Quercia e c'è il sole: "Con questo sole la quercia berrà molto, controllala spesso."
-           - Esempio: Se è "Healthy" ma l'acqua è al 50%: "Sta bene, ma non farla scendere troppo."
-        3. Se l'utente chiede "Come stanno le mie piante?", fai un riassunto generale emotivo (es. "La maggior parte sta alla grande, ma Gino mi preoccupa un po'...").
-        4. Usa un tono colloquiale, usa emoji, sii breve (max 3 frasi).
-        5. Se una pianta è CRITICA (<30%), sii allarmista e drammatico! 🚑
-
-        Rispondi alla domanda dell'utente basandoti su queste regole.
-      `
-    };
-
-    // Uniamo la storia della conversazione
-    const conversation = [systemPrompt, ...(history || []), { role: "user", content: message }];
-
+    // 4. CHIAMATA A GROQ
     const chatCompletion = await groq.chat.completions.create({
       messages: conversation,
       model: "llama-3.3-70b-versatile",
-      temperature: 0.8, // Aumentata creatività (da 0.7 a 0.8)
-      max_tokens: 350
+      temperature: isAdmin ? 0.3 : 0.7, // Admin più freddo (0.3), Utente più creativo (0.7)
+      max_tokens: 300
     });
 
-    const aiResponse = chatCompletion.choices[0]?.message?.content || "Mmm, le mie foglie non captano il segnale. Riprova.";
+    const aiResponse = chatCompletion.choices[0]?.message?.content || "Non ho dati sufficienti per rispondere.";
     
     res.json({ message: aiResponse });
 
   } catch (error) {
-    console.error("Errore Groq:", error);
-    res.status(500).json({ error: "Errore comunicazione AI" });
+    console.error("Errore Groq /chat:", error);
+    res.json({ message: "Ho avuto un piccolo malfunzionamento nei circuiti. Riprova tra poco!" });
   }
+});
+
+// --- ROTTA 2: CONSULTAZIONE SINGOLA (LEGACY) ---
+// Mantenuta per compatibilità con il codice esistente
+router.post('/consult', async (req, res) => {
+  try {
+    const { treeId } = req.body;
+    const tree = await Tree.findById(treeId);
+    if (!tree) return res.status(404).json({ error: "Albero non trovato" });
+
+    if (groq) {
+      try {
+        const cat = tree.category || 'pianta';
+        const prompt = `Sei Dr. Chlorophyll. Analizza questa ${cat}: "${tree.name}". Specie: ${tree.species}. Acqua/Stato: ${tree.waterLevel}%. Dammi un consiglio breve (max 20 parole) e leggermente sarcastico o divertente su come curarla.`;
+        
+        const chatCompletion = await groq.chat.completions.create({ 
+            messages: [{ "role": "user", "content": prompt }], 
+            model: "llama-3.3-70b-versatile", 
+            temperature: 0.7, 
+            max_tokens: 100 
+        });
+        
+        const aiMessage = chatCompletion.choices[0]?.message?.content || "Nessun consiglio.";
+        return res.json({ message: aiMessage });
+      } catch (aiError) { 
+          console.error("Errore Groq:", aiError.message); 
+      }
+    }
+    
+    // Fallback se no API Key
+    let backupMsg = tree.waterLevel < 30 ? "⚠️ Serve un intervento urgente!" : "✅ La pianta sta bene.";
+    res.json({ message: backupMsg });
+  } catch (error) { res.status(500).json({ error: "Errore AI" }); }
 });
 
 module.exports = router;
