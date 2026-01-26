@@ -8,7 +8,8 @@ import 'leaflet.markercluster';
 import 'leaflet.heat';
 
 const props = defineProps(['trees', 'user']);
-const emit = defineEmits(['water-action', 'adopt-action']);
+// AGGIUNTO 'city-changed'
+const emit = defineEmits(['water-action', 'adopt-action', 'city-changed']);
 
 const mapContainer = ref(null);
 const showHeatmap = ref(false);
@@ -27,7 +28,14 @@ let markersMap = {};
 
 const changeCity = (event) => {
   const coords = event.target.value.split(',').map(Number);
+  
+  // FIX METEO: Trova la città e avvisa la dashboard
+  const selectedCity = cities.find(c => c.coords[0] === coords[0] && c.coords[1] === coords[1]);
+  
   if (map) map.flyTo(coords, 13, { duration: 1.5 });
+  
+  // Emette l'evento che aggiorna il meteo
+  if (selectedCity) emit('city-changed', selectedCity);
 };
 
 // --- CONFIGURAZIONE ---
@@ -204,18 +212,13 @@ const renderMap = () => {
                  }
              }
 
-             // 3. FIX: AGGIORNA BOTTONE ADOTTA (Era questo che mancava!)
+             // 3. Aggiorna Bottone Adotta
              const btnAdopt = el.querySelector('.btn-adopt');
              if (btnAdopt) {
                 const isAdopted = props.user && props.user.adoptedTrees && props.user.adoptedTrees.includes(tree._id);
-                // Aggiorna Testo
                 btnAdopt.innerHTML = isAdopted ? '❤️ Tuo' : '🤍 Adotta';
-                // Aggiorna Classe CSS (per il colore del bordo)
-                if (isAdopted) {
-                    btnAdopt.classList.add('adopted');
-                } else {
-                    btnAdopt.classList.remove('adopted');
-                }
+                if (isAdopted) btnAdopt.classList.add('adopted');
+                else btnAdopt.classList.remove('adopted');
              }
          }
       }
@@ -242,6 +245,7 @@ const initMap = () => {
 onMounted(() => { 
     initMap(); 
     renderMap(); 
+    // AGGANCIO GLOBALE (Fondamentale perché siamo tornati a onclick nell'HTML)
     window.triggerWater = (id) => emit('water-action', id); 
     window.triggerAdopt = (id) => emit('adopt-action', id); 
 });
@@ -293,7 +297,7 @@ onBeforeUnmount(() => { if (map) { map.remove(); map = null; } markersMap = {}; 
 .leaflet-popup-content { margin: 0 !important; width: 220px !important; }
 .leaflet-container a.leaflet-popup-close-button { color: white !important; font-size: 24px !important; top: 5px !important; right: 5px !important; text-shadow: 0 1px 2px rgba(0,0,0,0.3); z-index: 2000; }
 .popup-custom { text-align: center; width: 100%; font-family: 'Inter', sans-serif; }
-.popup-header { height: 12px; width: 100%; margin: 0; }
+.popup-header { height: 12px; width: 100%; margin: 0; transition: background-color 0.3s; }
 .popup-body { padding: 15px; padding-top: 10px; }
 .popup-custom h3 { margin: 0; color: #2c3e50; font-size: 1.1rem; font-weight: 700; margin-top: 5px; }
 .bar-container { width: 100%; height: 10px; background: #ecf0f1; border-radius: 5px; margin: 8px 0; overflow: hidden; border: 1px solid #bdc3c7; }

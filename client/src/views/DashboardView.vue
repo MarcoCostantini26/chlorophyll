@@ -12,6 +12,27 @@ const emit = defineEmits(['water', 'force-water', 'ask-ai', 'adopt']);
 const sidebarTab = ref('leaderboard');
 const treeMapRef = ref(null);
 
+// --- LOGICA METEO CITTÀ ---
+const currentCity = ref({ name: 'Bologna', coords: [44.4949, 11.3426] });
+
+const handleCityChange = (newCity) => {
+  currentCity.value = newCity;
+};
+
+// --- NUOVA FUNZIONE: LOGICA SOLE/LUNA ---
+const getWeatherIcon = (w) => {
+  const hour = new Date().getHours();
+  // Consideriamo notte dalle 18:00 alle 06:00
+  const isNight = hour >= 18 || hour <= 6;
+
+  if (w === 'rain' || w === 'rainy') return '🌧️';
+  if (w === 'cloudy') return '☁️';
+  
+  // Se è sereno (sunny): mostra la Luna di notte, il Sole di giorno
+  return isNight ? '🌙' : '☀️';
+};
+// ----------------------------------------
+
 const isAdmin = computed(() => props.user?.role === 'city_manager');
 const canInteract = computed(() => props.user && (props.user.role === 'green_guardian' || props.user.role === 'city_manager'));
 
@@ -49,17 +70,23 @@ const handleFocusMap = (tree) => { if (treeMapRef.value) treeMapRef.value.flyToT
           <div 
             class="dashboard-card weather-card clickable" 
             :class="weather" 
-            @click="$router.push('/weather')"
-            title="Guarda previsioni"
+            @click="$router.push({ 
+              path: '/weather', 
+              query: { 
+                lat: currentCity.coords[0], 
+                lng: currentCity.coords[1], 
+                name: currentCity.name 
+              } 
+            })"
+            :title="'Guarda previsioni a ' + currentCity.name"
           >
             <div class="weather-icon">
-              <span v-if="weather === 'sunny'">☀️</span>
-              <span v-if="weather === 'cloudy'">☁️</span>
-              <span v-if="weather === 'rainy'">🌧️</span>
+              <span>{{ getWeatherIcon(weather) }}</span>
             </div>
             <div class="weather-info">
-              <h3>{{ weather === 'sunny' ? 'Soleggiato' : weather === 'cloudy' ? 'Nuvoloso' : 'Pioggia' }}</h3>
-              <small v-if="weather === 'rainy'">Auto-Innaffio</small><small v-else>Stabile</small>
+              <h3>{{ weather === 'sunny' ? 'Sereno' : weather === 'cloudy' ? 'Nuvoloso' : 'Pioggia' }}</h3>
+              <small v-if="weather === 'rainy'">{{ currentCity.name }}: Pioggia</small>
+              <small v-else>{{ currentCity.name }}: Stabile</small>
             </div>
           </div>
         </div>
@@ -80,6 +107,7 @@ const handleFocusMap = (tree) => { if (treeMapRef.value) treeMapRef.value.flyToT
           :user="user"
           @water-action="(id) => emit('water', id)" 
           @adopt-action="(id) => emit('adopt', id)"
+          @city-changed="handleCityChange"
         /> 
       </div>
       
@@ -130,6 +158,7 @@ const handleFocusMap = (tree) => { if (treeMapRef.value) treeMapRef.value.flyToT
 </template>
 
 <style scoped>
+/* STILE ORIGINALE CONFERMATO AL 100% */
 .main-layout { display: grid; grid-template-columns: 1fr 350px; gap: 30px; align-items: stretch; position: relative; }
 .content-column { display: flex; flex-direction: column; gap: 30px; width: 100%; }
 .sidebar-column { width: 100%; height: 100%; }
