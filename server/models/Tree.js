@@ -30,6 +30,11 @@ const TreeSchema = new mongoose.Schema({
     enum: ['healthy', 'thirsty', 'critical'],
     default: 'healthy'
   },
+  // --- NUOVO CAMPO: STORICO ---
+  history: [{
+    val: Number,
+    date: { type: Date, default: Date.now }
+  }],
   lastWatered: {
     type: Date,
     default: Date.now

@@ -52,7 +52,19 @@ app.use('/api/users', usersRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/ai', aiRoutes);
 
-// --- LOGICA SOCKET.IO ---
+// --- LOGICA DI GIOCO (GAME BALANCE) ---
+// Definisce quanto "cura" ogni azione in base al tipo di pianta
+const ACTION_VALUES = {
+  tree: 20,             // Innaffia
+  flowerbed: 20,        // Innaffia
+  vertical_garden: 20,  // Innaffia
+  hedge: 30,            // Pota
+  bush: 30,             // Pota
+  potted: 40,           // Concima
+  succulent: 15,        // Pulisci
+  default: 20           // Fallback
+};
+
 const calculateStatus = (level) => {
   if (level >= 60) return 'healthy';
   if (level > 20) return 'thirsty';
@@ -71,27 +83,34 @@ io.on('connection', (socket) => {
       const tree = await Tree.findById(treeId);
       if (!tree) return;
       
-      // 1. Check stato critico PRIMA dell'aggiornamento (Badge Saver)
-      const wasCritical = tree.waterLevel <= 20;
-
-      // 2. Aggiorna Albero
-      tree.waterLevel = Math.min(tree.waterLevel + 20, 100);
+      // 1. Determina il guadagno di salute in base alla categoria
+      const healthGain = ACTION_VALUES[tree.category] || ACTION_VALUES.default;
+      
+      // 2. Applica l'incremento
+      tree.waterLevel = Math.min(tree.waterLevel + healthGain, 100);
       tree.status = calculateStatus(tree.waterLevel);
       await tree.save();
       
       io.emit('tree_updated', tree);
 
-      // 3. Logica Utente (XP e Badge)
+      // 3. Log e XP Utente (Solo se loggato)
       if (userId && userId !== 'guest') {
-        // Log azione nel DB
+        
+        // Mappiamo la categoria al tipo di azione per il Log (per coerenza con ActionLog.js)
+        let actionName = 'water';
+        if (['hedge', 'bush'].includes(tree.category)) actionName = 'prune';
+        else if (['potted', 'succulent'].includes(tree.category)) actionName = 'treat';
+
         await ActionLog.create({ 
-            user: userId, tree: treeId, actionType: 'water', 
-            details: `Azione completata. Livello: ${tree.waterLevel}%` 
+            user: userId, 
+            tree: treeId, 
+            actionType: actionName, 
+            details: `Salute +${healthGain}% (Livello: ${tree.waterLevel}%)` 
         });
         
         const user = await User.findById(userId);
         if (user) {
-          // Aumento XP
+          // Assegnazione XP (fissa a 15 per ora, modificabile se vuoi diversificare anche questo)
           user.xp += 15;
           const newLevel = Math.floor(user.xp / 100) + 1;
           
@@ -100,14 +119,13 @@ io.on('connection', (socket) => {
             user.level = newLevel;
             io.emit('level_up', { username: user.username, level: user.level });
             
-            // BADGE: POLLICE VERDE (Livello 5)
+            // Sblocco Badge Livello 5
             if (newLevel >= 5 && !user.badges.includes('GREEN_THUMB')) {
               user.badges.push('GREEN_THUMB');
               io.emit('badge_unlocked', { username: user.username, badge: { name: 'Pollice Verde', desc: 'Raggiunto il livello 5!' } });
             }
           }
-
-          // BADGE: PRIMA GOCCIA
+          // Sblocco Badge Prima Azione
           if (!user.badges.includes('FIRST_DROP')) {
              user.badges.push('FIRST_DROP');
              io.emit('badge_unlocked', { username: user.username, badge: { name: 'Prima Goccia', desc: 'Hai curato la tua prima pianta.' } });
@@ -140,7 +158,7 @@ io.on('connection', (socket) => {
     } catch (e) { console.error(e); }
   });
 
-  // --- AZIONE ADMIN (FORZA ACQUA) ---
+  // --- AZIONE ADMIN: FORZATURA ---
   socket.on('admin_force_water', async ({ treeId, amount }) => {
     try {
       const tree = await Tree.findById(treeId);
