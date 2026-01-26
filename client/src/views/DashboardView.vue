@@ -46,7 +46,12 @@ const handleFocusMap = (tree) => { if (treeMapRef.value) treeMapRef.value.flyToT
             </div>
           </div>
 
-          <div class="dashboard-card weather-card" :class="weather">
+          <div 
+            class="dashboard-card weather-card clickable" 
+            :class="weather" 
+            @click="$router.push('/weather')"
+            title="Guarda previsioni"
+          >
             <div class="weather-icon">
               <span v-if="weather === 'sunny'">☀️</span>
               <span v-if="weather === 'cloudy'">☁️</span>
@@ -125,38 +130,10 @@ const handleFocusMap = (tree) => { if (treeMapRef.value) treeMapRef.value.flyToT
 </template>
 
 <style scoped>
-/* REPLICA ESATTA DEL VECCHIO LAYOUT FUNZIONANTE */
-.main-layout { 
-  display: grid; 
-  grid-template-columns: 1fr 350px; 
-  gap: 30px; 
-  /* 'stretch' era il valore nel vecchio file che funzionava */
-  align-items: stretch; 
-  position: relative; 
-}
-
-.content-column { 
-  display: flex; flex-direction: column; gap: 30px; width: 100%; 
-}
-
-.sidebar-column { 
-  width: 100%; height: 100%; 
-}
-
-.sticky-sidebar { 
-  position: -webkit-sticky; 
-  position: sticky; 
-  
-  /* L'UNICA DIFFERENZA COL VECCHIO FILE:
-     Invece di 20px, mettiamo 90px perché ora hai un header fisso di 70px.
-     Se metti 20px, finisce sotto l'header nero. */
-  top: 90px; 
-  
-  z-index: 900; 
-  height: fit-content; 
-}
-
-/* STILI STANDARD DEL VECCHIO FILE */
+.main-layout { display: grid; grid-template-columns: 1fr 350px; gap: 30px; align-items: stretch; position: relative; }
+.content-column { display: flex; flex-direction: column; gap: 30px; width: 100%; }
+.sidebar-column { width: 100%; height: 100%; }
+.sticky-sidebar { position: -webkit-sticky; position: sticky; top: 90px; z-index: 900; height: fit-content; }
 .top-row-grid { display: grid; grid-template-columns: 1fr 1.5fr; gap: 20px; width: 100%; }
 .full-width-block { width: 100%; }
 .info-stack { display: flex; flex-direction: column; gap: 10px; }
@@ -171,11 +148,16 @@ const handleFocusMap = (tree) => { if (treeMapRef.value) treeMapRef.value.flyToT
 .xp-header { display: flex; justify-content: space-between; font-size: 0.8rem; color: #7f8c8d; margin-bottom: 4px; }
 .xp-bar { width: 100%; height: 6px; background: #eee; border-radius: 3px; overflow: hidden; }
 .xp-fill { height: 100%; background: #f1c40f; transition: width 0.5s ease-out; }
+
+/* STILE CARD METEO */
 .weather-card { display: flex; align-items: center; gap: 15px; color: white; border: none; justify-content: center; min-height: 70px; }
+.weather-card.clickable { cursor: pointer; transition: transform 0.2s; }
+.weather-card.clickable:hover { transform: scale(1.02); }
 .weather-card.sunny { background: linear-gradient(135deg, #f2994a, #f2c94c); }
 .weather-card.cloudy { background: linear-gradient(135deg, #bdc3c7, #2c3e50); }
 .weather-card.rainy { background: linear-gradient(135deg, #373b44, #4286f4); }
 .weather-icon { font-size: 2.2rem; }
+
 .badges-container { height: 100%; }
 .full-height-badge { height: 100%; display: flex; flex-direction: column; }
 .sidebar-tabs { display: flex; gap: 5px; margin-bottom: 15px; }
