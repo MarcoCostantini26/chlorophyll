@@ -82,7 +82,7 @@ const waterTree = (treeId) => {
 const forceWater = ({id, amt}) => { socket.emit('admin_force_water', { treeId: id, amount: amt }); };
 
 const toggleAdopt = async (treeId) => {
-  if (!isUser.value) return; 
+  if (!currentUser.value || isGuest.value) return;
   try {
     const res = await fetch('http://localhost:3000/api/users/adopt', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
