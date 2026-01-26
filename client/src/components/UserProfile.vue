@@ -16,10 +16,19 @@ watch(() => props.user, (newUser) => {
   editData.value.avatar = newUser.avatar;
 }, { deep: true });
 
+// --- CALCOLI STATISTICHE REALI ---
 const nextLevelXp = computed(() => props.user.level * 100);
 const progressPercent = computed(() => (props.user.xp % 100));
-const co2Saved = computed(() => (props.user.xp * 0.5).toFixed(1)); 
-const waterGiven = computed(() => (props.user.xp * 2)); 
+
+// 1. Conta quanti badge ha l'utente nell'array
+const badgesCount = computed(() => props.user.badges ? props.user.badges.length : 0);
+
+// 2. Stima Acqua: 1 Azione = 15 XP. Supponiamo 5 Litri ad azione.
+const realWaterGiven = computed(() => {
+  const actions = Math.floor(props.user.xp / 15); 
+  return actions * 5; 
+});
+
 const treesCount = computed(() => props.user.adoptedTrees ? props.user.adoptedTrees.length : 0);
 
 const saveProfile = async () => {
@@ -113,20 +122,23 @@ const avatars = ['👤', '👨‍🌾', '👩‍🌾', '🦊', '🐻', '🐝', '
           </div>
 
           <div class="stats-row">
+            
             <div class="stat-pill">
-              <span class="icon">🌍</span> 
+              <span class="icon">🏆</span> 
               <div class="stat-text">
-                <strong>{{ co2Saved }}kg</strong> 
-                <small>CO₂</small>
+                <strong>{{ badgesCount }}</strong> 
+                <small>Trofei</small>
               </div>
             </div>
+
             <div class="stat-pill">
               <span class="icon">💧</span> 
               <div class="stat-text">
-                <strong>{{ waterGiven }}L</strong> 
-                <small>H₂O</small>
+                <strong>{{ realWaterGiven }}L</strong> 
+                <small>Versati</small>
               </div>
             </div>
+
             <div class="stat-pill highlight">
               <span class="icon">🌲</span> 
               <div class="stat-text">
@@ -134,6 +146,7 @@ const avatars = ['👤', '👨‍🌾', '👩‍🌾', '🦊', '🐻', '🐝', '
                 <small>Alberi</small>
               </div>
             </div>
+            
           </div>
         </div>
 
