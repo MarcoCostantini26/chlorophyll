@@ -4,7 +4,7 @@ import LoginView from '../views/LoginView.vue'
 import ProfileView from '../views/ProfileView.vue'
 import AdminAnalyticsView from '../views/AdminAnalyticsView.vue'
 import WeatherView from '../views/WeatherView.vue'
-import TreeDetailView from '../views/TreeDetailView.vue' // <--- ASSICURATI DI AVERE QUESTO FILE CREATO
+import TreeDetailView from '../views/TreeDetailView.vue' 
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -12,7 +12,8 @@ const router = createRouter({
     {
       path: '/',
       name: 'home',
-      component: DashboardView
+      component: DashboardView,
+      meta: { requiresAuth: true } // Richiede Login
     },
     {
       path: '/login',
@@ -23,25 +24,40 @@ const router = createRouter({
     {
       path: '/profile',
       name: 'profile',
-      component: ProfileView
+      component: ProfileView,
+      meta: { requiresAuth: true }
     },
     {
       path: '/admin/analytics',
       name: 'admin',
-      component: AdminAnalyticsView
+      component: AdminAnalyticsView,
+      meta: { requiresAuth: true }
     },
     {
       path: '/weather',
       name: 'weather',
-      component: WeatherView
+      component: WeatherView,
+      meta: { requiresAuth: true }
     },
-    // --- ROTTA DETTAGLIO (CRUCIALE) ---
     { 
       path: '/admin/tree/:id', 
       name: 'tree-detail', 
-      component: TreeDetailView 
+      component: TreeDetailView,
+      meta: { requiresAuth: true }
     }
   ]
 })
+
+// --- GUARDIA CHE PREVIENE SCHERMO NERO ---
+router.beforeEach((to, from, next) => {
+  const user = localStorage.getItem('user'); 
+  
+  // Se la pagina richiede login MA non c'è utente salvato -> VAI AL LOGIN
+  if (to.meta.requiresAuth && !user) {
+    next('/login');
+  } else {
+    next();
+  }
+});
 
 export default router

@@ -1,33 +1,31 @@
 <script setup>
 import { ref, onMounted, computed, nextTick } from 'vue';
-import { useRouter } from 'vue-router';
+import { useRouter, useRoute } from 'vue-router';
 import { io } from 'socket.io-client';
 
-// IMPORTA I WIDGET
 import UserChatWidget from './components/UserChatWidget.vue';
 import AdminChatWidget from './components/AdminChatWidget.vue';
 
 const socket = io('http://localhost:3000');
 const router = useRouter();
+const route = useRoute();
 
 const trees = ref([]);
-const currentUser = ref(null);
+
+// --- FIX SCHERMO NERO ---
+// Leggiamo SUBITO la memoria. Se è null, l'app sa che deve aspettare o reindirizzare.
+const currentUser = ref(JSON.parse(localStorage.getItem('user')) || null);
+
 const isConnected = ref(false);
 const currentWeather = ref('sunny');
-
 const showLevelUp = ref(false);
 const showBadgeModal = ref(false);
 const lastUnlockedBadge = ref({ name: '', desc: '' });
-
-// Variabile per resettare i componenti
 const isWidgetAlive = ref(true);
 
 // --- LOGICA RUOLI ---
-// isUser è VERO solo se è un utente registrato (Green Guardian)
 const isUser = computed(() => currentUser.value && currentUser.value.role === 'green_guardian');
-// isAdmin è VERO solo se è City Manager
 const isAdmin = computed(() => currentUser.value && currentUser.value.role === 'city_manager');
-// isGuest è VERO se è Public Monitor (Nuovo!)
 const isGuest = computed(() => currentUser.value && currentUser.value.role === 'guest');
 
 const handleProfileUpdate = (updatedUser) => {
@@ -35,34 +33,35 @@ const handleProfileUpdate = (updatedUser) => {
   localStorage.setItem('user', JSON.stringify(updatedUser)); 
 };
 
-// LOGIN NORMALE
 const handleLoginSuccess = async (user) => { 
   isWidgetAlive.value = false;
-  currentUser.value = user; 
-  localStorage.setItem('user', JSON.stringify(user));
+  handleProfileUpdate(user);
   await nextTick();
   isWidgetAlive.value = true;
   router.push('/');
 };
 
-// --- NUOVO: ACCESSO OSPITE (SPETTATORE) ---
+// --- FIX OSPITE ---
 const handleGuestAccess = async () => {
   isWidgetAlive.value = false;
   
-  // Creiamo un utente finto volatile (non salvato nel localStorage)
-  currentUser.value = {
+  const guestUser = {
     _id: 'guest',
     username: 'Public Monitor',
     role: 'guest',
     avatar: '👁️',
     xp: 0,
     level: 0,
-    badges: []
+    badges: [],
+    adoptedTrees: []
   };
+
+  // SALVIAMO NEL LOCALSTORAGE (Fondamentale!)
+  handleProfileUpdate(guestUser);
 
   await nextTick();
   isWidgetAlive.value = true;
-  router.push('/'); // Va alla dashboard
+  router.push('/'); 
 };
 
 const handleLogout = async () => { 
@@ -74,7 +73,6 @@ const handleLogout = async () => {
   isWidgetAlive.value = true;
 };
 
-// DATA FETCHING
 const fetchTrees = async () => { 
   try {
     const res = await fetch('http://localhost:3000/api/trees'); 
@@ -82,9 +80,8 @@ const fetchTrees = async () => {
   } catch (e) { console.error(e); }
 };
 
-// AZIONI (Bloccate se guest, ma il controllo UI è nel componente figlio)
 const waterTree = (treeId) => { 
-  if (currentUser.value && currentUser.value.role !== 'guest') { 
+  if (currentUser.value && !isGuest.value) { 
     socket.emit('water_tree', { treeId, userId: currentUser.value._id }); 
   }
 };
@@ -92,7 +89,6 @@ const waterTree = (treeId) => {
 const forceWater = ({id, amt}) => { socket.emit('admin_force_water', { treeId: id, amount: amt }); };
 
 const toggleAdopt = async (treeId) => {
-  // L'adozione invece la lasciamo SOLO agli utenti normali (l'Admin non adotta)
   if (!isUser.value) return; 
   try {
     const res = await fetch('http://localhost:3000/api/users/adopt', {
@@ -104,10 +100,12 @@ const toggleAdopt = async (treeId) => {
 };
 
 onMounted(() => {
+  // Fix per riallineare lo stato se il localStorage era vecchio
   const saved = localStorage.getItem('user');
   if (saved) {
     try { currentUser.value = JSON.parse(saved); } catch (e) { localStorage.removeItem('user'); }
   }
+
   fetchTrees();
   socket.on('connect', () => isConnected.value = true);
   socket.on('disconnect', () => isConnected.value = false);
@@ -123,7 +121,7 @@ onMounted(() => {
 <template>
   <div class="app-root">
     
-    <header class="app-header" v-if="currentUser">
+    <header class="app-header" v-if="currentUser && !route.meta.hideChat">
       <div class="header-container">
         <div class="header-left">
           <h1 class="main-title">🍃 Chlorophyll</h1>
@@ -157,32 +155,18 @@ onMounted(() => {
       </div>
     </main>
     
-    <template v-if="isWidgetAlive">
-      <UserChatWidget 
-        v-if="isUser" 
-        :key="'user-' + currentUser._id"
-        :trees="trees" 
-        :weather="currentWeather"
-        :user="currentUser"  
-      />
-
-      <AdminChatWidget 
-        v-if="isAdmin"
-        :key="'admin-' + currentUser._id"
-        :user="currentUser"   
-      />
+    <template v-if="isWidgetAlive && currentUser && !route.meta.hideChat">
+      <UserChatWidget v-if="isUser" :key="'user-' + currentUser._id" :trees="trees" :weather="currentWeather" :user="currentUser" />
+      <AdminChatWidget v-if="isAdmin" :key="'admin-' + currentUser._id" :user="currentUser" />
     </template>
 
     <div v-if="showLevelUp" class="level-up-modal">🌟 LEVEL UP! 🌟</div>
-    <div v-if="showBadgeModal" class="badge-modal">
-       <div class="badge-icon">🏆</div><h3>BADGE SBLOCCATO!</h3><p>{{ lastUnlockedBadge.name }}</p>
-    </div>
-
+    <div v-if="showBadgeModal" class="badge-modal"><div class="badge-icon">🏆</div><h3>BADGE SBLOCCATO!</h3><p>{{ lastUnlockedBadge.name }}</p></div>
   </div>
 </template>
 
 <style>
-/* ... CSS PRECEDENTE ... */
+/* CSS RIMANE UGUALE - COPIALO DAL TUO FILE PRECEDENTE O TIENI QUELLO CHE HAI */
 html, body { margin: 0; padding: 0; width: 100%; font-family: 'Inter', sans-serif; background-color: #121212; color: #ecf0f1; }
 .app-header { position: fixed; top: 0; left: 0; width: 100%; height: 70px; background: #1e1e1e; border-bottom: 2px solid #333; box-shadow: 0 4px 12px rgba(0,0,0,0.3); z-index: 1000; }
 .header-container { display: flex; justify-content: space-between; align-items: center; height: 100%; padding: 0 30px; max-width: 1400px; margin: 0 auto; }
@@ -200,10 +184,7 @@ html, body { margin: 0; padding: 0; width: 100%; font-family: 'Inter', sans-seri
 .admin-link:hover { color: #8e44ad !important; text-shadow: 0 0 10px rgba(142, 68, 173, 0.4); }
 .btn-logout { color: #e74c3c !important; height: auto; border: 1px solid #e74c3c; padding: 6px 14px; border-radius: 20px; font-size: 0.85rem; line-height: 1; border-bottom: 1px solid #e74c3c !important; }
 .btn-logout:hover { background: #e74c3c; color: white !important; }
-
-/* NUOVO STILE BADGE GUEST */
 .guest-badge { background: #3498db; color: white; padding: 4px 10px; border-radius: 4px; font-weight: bold; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.5px; }
-
 .level-up-modal { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: #f1c40f; color: white; padding: 20px 40px; border-radius: 50px; font-size: 2rem; z-index: 3000; font-weight: 900; animation: popIn 0.5s; }
 .badge-modal { position: fixed; top: 30%; left: 50%; transform: translate(-50%, -50%); background: #2c3e50; border: 4px solid #f1c40f; color: white; padding: 30px; text-align: center; border-radius: 20px; z-index: 4000; animation: popIn 0.5s; min-width: 300px; }
 .badge-modal .badge-icon { font-size: 5rem; margin-bottom: 15px; display: block; }
