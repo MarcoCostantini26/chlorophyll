@@ -12,12 +12,7 @@ const router = useRouter();
 const route = useRoute();
 
 const trees = ref([]);
-
-// --- FIX CRITICO PER LO SCHERMO NERO ---
-// Leggiamo SUBITO la memoria all'avvio. 
-// Se è null, l'app parte sapendo di essere "sloggata" e il router la manda al login.
 const currentUser = ref(JSON.parse(localStorage.getItem('user')) || null);
-
 const isConnected = ref(false);
 const currentWeather = ref('sunny');
 const showLevelUp = ref(false);
@@ -30,13 +25,11 @@ const isUser = computed(() => currentUser.value && currentUser.value.role === 'g
 const isAdmin = computed(() => currentUser.value && currentUser.value.role === 'city_manager');
 const isGuest = computed(() => currentUser.value && currentUser.value.role === 'guest');
 
-// Helper per aggiornare stato e memoria
 const handleProfileUpdate = (updatedUser) => {
   currentUser.value = updatedUser; 
   localStorage.setItem('user', JSON.stringify(updatedUser)); 
 };
 
-// LOGIN UTENTE
 const handleLoginSuccess = async (user) => { 
   isWidgetAlive.value = false;
   handleProfileUpdate(user);
@@ -45,30 +38,15 @@ const handleLoginSuccess = async (user) => {
   router.push('/');
 };
 
-// LOGIN OSPITE (FIXATO)
 const handleGuestAccess = async () => {
   isWidgetAlive.value = false;
-  
-  const guestUser = {
-    _id: 'guest',
-    username: 'Public Monitor',
-    role: 'guest',
-    avatar: '👁️',
-    xp: 0,
-    level: 0,
-    badges: [],
-    adoptedTrees: []
-  };
-
-  // Salviamo nel LocalStorage così il Router ci lascia entrare
+  const guestUser = { _id: 'guest', username: 'Public Monitor', role: 'guest', avatar: '👁️', xp: 0, level: 0, badges: [], adoptedTrees: [] };
   handleProfileUpdate(guestUser);
-
   await nextTick();
   isWidgetAlive.value = true;
   router.push('/'); 
 };
 
-// LOGOUT
 const handleLogout = async () => { 
   localStorage.removeItem('user');
   await router.push('/login'); 
@@ -78,7 +56,6 @@ const handleLogout = async () => {
   isWidgetAlive.value = true;
 };
 
-// DATA FETCHING
 const fetchTrees = async () => { 
   try {
     const res = await fetch('http://localhost:3000/api/trees'); 
@@ -86,7 +63,6 @@ const fetchTrees = async () => {
   } catch (e) { console.error(e); }
 };
 
-// AZIONI SOCKET
 const waterTree = (treeId) => { 
   if (currentUser.value && !isGuest.value) { 
     socket.emit('water_tree', { treeId, userId: currentUser.value._id }); 
@@ -109,14 +85,9 @@ const toggleAdopt = async (treeId) => {
 };
 
 onMounted(() => {
-  // Sicurezza extra: se il localStorage era corrotto, puliamo
   const saved = localStorage.getItem('user');
-  if (saved) {
-    try { JSON.parse(saved); } catch (e) { localStorage.removeItem('user'); }
-  }
-
+  if (saved) { try { JSON.parse(saved); } catch (e) { localStorage.removeItem('user'); } }
   fetchTrees();
-  
   socket.on('connect', () => isConnected.value = true);
   socket.on('disconnect', () => isConnected.value = false);
   socket.on('tree_updated', (t) => { const idx = trees.value.findIndex(x => x._id === t._id); if (idx !== -1) { trees.value[idx] = t; trees.value = [...trees.value]; } });
@@ -134,7 +105,8 @@ onMounted(() => {
     <header class="app-header" v-if="currentUser && !route.meta.hideChat">
       <div class="header-container">
         <div class="header-left">
-          <h1 class="main-title">🍃 Chlorophyll</h1>
+          <h1 class="main-title" @click="$router.push('/')">🍃 Chlorophyll</h1>
+          
           <span v-if="isGuest" class="guest-badge">👁️ SPETTATORE</span>
           <div :class="['status-pill', isConnected ? 'online' : 'offline']">
             {{ isConnected ? 'Online' : 'Offline' }}
@@ -142,18 +114,9 @@ onMounted(() => {
         </div>
         
         <nav class="main-nav">
-          <router-link to="/" class="nav-item dashboard-link">
-            🌲 Dashboard
-          </router-link>
-          
-          <router-link v-if="isAdmin" to="/admin/analytics" class="nav-item admin-link">
-            🎛️ Control Room
-          </router-link>
-          
-          <router-link v-if="!isGuest" to="/profile" class="nav-item profile-link">
-            👤 Profilo
-          </router-link>
-          
+          <router-link to="/" class="nav-item dashboard-link">🌲 Dashboard</router-link>
+          <router-link v-if="isAdmin" to="/admin/analytics" class="nav-item admin-link">🎛️ Control Room</router-link>
+          <router-link v-if="!isGuest" to="/profile" class="nav-item profile-link">👤 Profilo</router-link>
           <button @click="handleLogout" class="nav-item btn-logout">Esci 🚪</button>
         </nav>
       </div>
@@ -178,20 +141,8 @@ onMounted(() => {
     </main>
     
     <template v-if="isWidgetAlive && currentUser && !route.meta.hideChat">
-      <UserChatWidget 
-        v-if="isUser" 
-        :key="'user-' + currentUser._id" 
-        :trees="trees" 
-        :weather="currentWeather" 
-        :user="currentUser" 
-      />
-      
-      <AdminChatWidget 
-        v-if="isAdmin" 
-        :key="'admin-' + currentUser._id" 
-        :user="currentUser"
-        :trees="trees" 
-      />
+      <UserChatWidget v-if="isUser" :key="'user-' + currentUser._id" :trees="trees" :weather="currentWeather" :user="currentUser" />
+      <AdminChatWidget v-if="isAdmin" :key="'admin-' + currentUser._id" :user="currentUser" />
     </template>
 
     <div v-if="showLevelUp" class="level-up-modal">🌟 LEVEL UP! 🌟</div>
@@ -201,7 +152,7 @@ onMounted(() => {
 </template>
 
 <style>
-/* --- CSS GLOBALE --- */
+/* GLOBALI */
 html, body { margin: 0; padding: 0; width: 100%; font-family: 'Inter', sans-serif; background-color: #121212; color: #ecf0f1; }
 
 .app-header { position: fixed; top: 0; left: 0; width: 100%; height: 70px; background: #1e1e1e; border-bottom: 2px solid #333; box-shadow: 0 4px 12px rgba(0,0,0,0.3); z-index: 1000; }
@@ -211,54 +162,42 @@ html, body { margin: 0; padding: 0; width: 100%; font-family: 'Inter', sans-seri
 .content-wrapper { max-width: 1400px; margin: 0 auto; padding: 0 20px; }
 
 .header-left { display: flex; align-items: center; gap: 15px; }
-.main-title { color: #2ecc71; font-size: 1.5rem; margin: 0; font-weight: 800; } 
+
+/* MODIFICA QUI: Aggiunto cursor: pointer per far capire che è cliccabile */
+.main-title { 
+  color: #2ecc71; 
+  font-size: 1.5rem; 
+  margin: 0; 
+  font-weight: 800; 
+  cursor: pointer; 
+  transition: transform 0.2s;
+}
+.main-title:hover {
+  transform: scale(1.05); /* Effetto carino al passaggio del mouse */
+}
+
 .status-pill { padding: 4px 10px; border-radius: 20px; font-size: 0.75rem; font-weight: bold; color: white; text-transform: uppercase; }
 .online { background: #2ecc71; } .offline { background: #e74c3c; }
 
-/* --- NAVIGAZIONE COLORATA --- */
+/* NAVIGAZIONE */
 .main-nav { display: flex; gap: 20px; align-items: center; }
+.nav-item { text-decoration: none; color: #bdc3c7; font-weight: 600; font-size: 0.95rem; transition: all 0.2s; background: none; border: none; font-family: inherit; cursor: pointer; display: flex; align-items: center; height: 70px; border-bottom: 3px solid transparent; }
 
-/* Base per i link */
-.nav-item { 
-  text-decoration: none; 
-  color: #bdc3c7; 
-  font-weight: 600; 
-  font-size: 0.95rem; 
-  transition: all 0.2s; 
-  background: none; 
-  border: none; 
-  font-family: inherit; 
-  cursor: pointer; 
-  display: flex; 
-  align-items: center; 
-  height: 70px; 
-  border-bottom: 3px solid transparent; 
-}
-
-/* 1. DASHBOARD (Verde) */
 .dashboard-link:hover { color: #2ecc71; }
 .dashboard-link.router-link-active { color: #2ecc71; border-bottom-color: #2ecc71; }
 
-/* 2. ADMIN (Viola) */
 .admin-link:hover { color: #9b59b6; }
-.admin-link.router-link-active { 
-  color: #9b59b6 !important; 
-  border-bottom-color: #9b59b6 !important; 
-  text-shadow: 0 0 10px rgba(142, 68, 173, 0.3);
-}
+.admin-link.router-link-active { color: #9b59b6 !important; border-bottom-color: #9b59b6 !important; text-shadow: 0 0 10px rgba(142, 68, 173, 0.3); }
 
-/* 3. PROFILO (Azzurro) */
 .profile-link:hover { color: #3498db; }
 .profile-link.router-link-active { color: #3498db !important; border-bottom-color: #3498db !important; }
 
-/* Logout (Rosso) */
 .btn-logout { color: #e74c3c !important; height: auto; border: 1px solid #e74c3c; padding: 6px 14px; border-radius: 20px; font-size: 0.85rem; line-height: 1; border-bottom: 1px solid #e74c3c !important; }
 .btn-logout:hover { background: #e74c3c; color: white !important; }
 
-/* Badge Ospite */
 .guest-badge { background: #3498db; color: white; padding: 4px 10px; border-radius: 4px; font-weight: bold; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.5px; }
 
-/* Modali */
+/* MODALI */
 .level-up-modal { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: #f1c40f; color: white; padding: 20px 40px; border-radius: 50px; font-size: 2rem; z-index: 3000; font-weight: 900; animation: popIn 0.5s; }
 .badge-modal { position: fixed; top: 30%; left: 50%; transform: translate(-50%, -50%); background: #2c3e50; border: 4px solid #f1c40f; color: white; padding: 30px; text-align: center; border-radius: 20px; z-index: 4000; animation: popIn 0.5s; min-width: 300px; }
 .badge-modal .badge-icon { font-size: 5rem; margin-bottom: 15px; display: block; }

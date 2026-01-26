@@ -172,15 +172,7 @@ onMounted(fetchTreeDetail);
           </div>
         </div>
       </div>
-
-      <div class="info-card">
-        <h3>Dettagli Tecnici</h3>
-        <ul>
-          <li><strong>Coordinate:</strong> {{ tree.location.lat }}, {{ tree.location.lng }}</li>
-          <li><strong>Ultima Azione Effettuata:</strong> {{ new Date(tree.lastWatered).toLocaleString() }}</li>
-          <li><strong>Punti visualizzati:</strong> {{ chartData.labels.length }}</li>
-        </ul>
-      </div>
+      
     </div>
   </div>
 </template>
