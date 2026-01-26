@@ -1,22 +1,18 @@
 <script setup>
 import { ref, nextTick } from 'vue';
 
-// Aggiungiamo 'trees' ai props
-const props = defineProps(['trees', 'user']);
+// Riceviamo 'trees' da App.vue
+const props = defineProps(['user', 'trees']);
 
 const isOpen = ref(false);
 const isLoading = ref(false);
 const userMessage = ref('');
 const messages = ref([
-  { role: 'assistant', text: 'Benvenuto Admin. Sono connesso al database globale. Chiedimi un report sulla situazione.' }
+  { role: 'assistant', text: 'Benvenuto Admin. City Brain online. 🧠' }
 ]);
 const chatBody = ref(null);
 
-const scrollToBottom = () => {
-  nextTick(() => {
-    if (chatBody.value) chatBody.value.scrollTop = chatBody.value.scrollHeight;
-  });
-};
+const scrollToBottom = () => nextTick(() => { if (chatBody.value) chatBody.value.scrollTop = chatBody.value.scrollHeight; });
 
 const sendMessage = async () => {
   if (!userMessage.value.trim() || isLoading.value) return;
@@ -28,29 +24,30 @@ const sendMessage = async () => {
   isLoading.value = true;
 
   try {
-    // --- FIX ADMIN: CALCOLI LIVE SUI DATI MAPPA ---
-    // Invece di fare fetch, usiamo props.trees che è sempre aggiornato
+    // 1. STATISTICHE GENERALI (Come prima)
     const allTrees = props.trees || [];
-    
     const totalTrees = allTrees.length;
     const criticalList = allTrees.filter(t => t.status === 'critical');
     const thirstyList = allTrees.filter(t => t.status === 'thirsty');
-    const healthyList = allTrees.filter(t => t.status === 'healthy');
-
     const totalWater = allTrees.reduce((sum, t) => sum + t.waterLevel, 0);
     const avgWater = totalTrees > 0 ? Math.round(totalWater / totalTrees) : 0;
 
-    // Prepariamo il contesto
+    // 2. GENERIAMO LA LISTA COMPLETA DEI NOMI (Nuovo!)
+    // Creiamo una stringa compatta: "Nome (Stato - Acqua%)"
+    const fullTreeList = allTrees.map(t => 
+      `- ${t.name} [${t.status.toUpperCase()}, ${Math.round(t.waterLevel)}%]`
+    ).join('\n');
+
     const contextData = {
       totalTrees,
       criticalTrees: criticalList.length,
       thirstyTrees: thirstyList.length,
-      healthyTrees: healthyList.length,
       avgWater,
-      // Passiamo i nomi di quelli critici per report dettagliati
-      criticalDetails: criticalList.map(t => `${t.name} (${t.waterLevel}%)`).join(', ')
+      // Passiamo la lista completa all'AI
+      fullTreeList: fullTreeList 
     };
 
+    // 3. INVIO AL SERVER
     const res = await fetch('http://localhost:3000/api/ai/chat', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -67,7 +64,7 @@ const sendMessage = async () => {
 
   } catch (e) {
     console.error(e);
-    messages.value.push({ role: 'assistant', text: "Errore sistema." });
+    messages.value.push({ role: 'assistant', text: "Errore connessione sistema." });
   } finally {
     isLoading.value = false;
     scrollToBottom();
