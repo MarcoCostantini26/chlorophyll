@@ -1,6 +1,9 @@
 <script setup>
 import { ref, nextTick } from 'vue';
 
+// Aggiungiamo 'trees' ai props
+const props = defineProps(['trees', 'user']);
+
 const isOpen = ref(false);
 const isLoading = ref(false);
 const userMessage = ref('');
@@ -9,23 +12,10 @@ const messages = ref([
 ]);
 const chatBody = ref(null);
 
-// Scroll automatico in basso
 const scrollToBottom = () => {
   nextTick(() => {
     if (chatBody.value) chatBody.value.scrollTop = chatBody.value.scrollHeight;
   });
-};
-
-// Funzione per recuperare i dati LIVE dal server (come fa la dashboard)
-const fetchAdminData = async () => {
-  try {
-    const res = await fetch('http://localhost:3000/api/admin/analytics');
-    if (!res.ok) return null;
-    return await res.json();
-  } catch (e) {
-    console.error("Errore fetch dati admin per AI", e);
-    return null;
-  }
 };
 
 const sendMessage = async () => {
@@ -38,21 +28,29 @@ const sendMessage = async () => {
   isLoading.value = true;
 
   try {
-    // 1. Recuperiamo i dati freschi della città
-    const analyticsData = await fetchAdminData();
+    // --- FIX ADMIN: CALCOLI LIVE SUI DATI MAPPA ---
+    // Invece di fare fetch, usiamo props.trees che è sempre aggiornato
+    const allTrees = props.trees || [];
+    
+    const totalTrees = allTrees.length;
+    const criticalList = allTrees.filter(t => t.status === 'critical');
+    const thirstyList = allTrees.filter(t => t.status === 'thirsty');
+    const healthyList = allTrees.filter(t => t.status === 'healthy');
 
-    // 2. Prepariamo il contesto ADMIN
-    const contextData = analyticsData ? {
-      totalTrees: analyticsData.totalTrees,
-      criticalTrees: analyticsData.criticalTrees,
-      thirstyTrees: analyticsData.thirstyTrees,
-      healthyTrees: analyticsData.healthyTrees,
-      avgWater: analyticsData.avgWater,
-      // Se vuoi passare anche le categorie:
-      categories: analyticsData.categories 
-    } : {};
+    const totalWater = allTrees.reduce((sum, t) => sum + t.waterLevel, 0);
+    const avgWater = totalTrees > 0 ? Math.round(totalWater / totalTrees) : 0;
 
-    // 3. Chiamata all'AI con flag isAdmin: true
+    // Prepariamo il contesto
+    const contextData = {
+      totalTrees,
+      criticalTrees: criticalList.length,
+      thirstyTrees: thirstyList.length,
+      healthyTrees: healthyList.length,
+      avgWater,
+      // Passiamo i nomi di quelli critici per report dettagliati
+      criticalDetails: criticalList.map(t => `${t.name} (${t.waterLevel}%)`).join(', ')
+    };
+
     const res = await fetch('http://localhost:3000/api/ai/chat', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -60,7 +58,7 @@ const sendMessage = async () => {
         message: text, 
         history: messages.value.slice(-6), 
         context: contextData,
-        isAdmin: true // <--- FLAG FONDAMENTALE
+        isAdmin: true 
       })
     });
 
@@ -68,6 +66,7 @@ const sendMessage = async () => {
     messages.value.push({ role: 'assistant', text: data.message });
 
   } catch (e) {
+    console.error(e);
     messages.value.push({ role: 'assistant', text: "Errore sistema." });
   } finally {
     isLoading.value = false;
