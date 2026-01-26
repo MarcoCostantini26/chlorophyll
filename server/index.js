@@ -53,7 +53,6 @@ app.use('/api/admin', adminRoutes);
 app.use('/api/ai', aiRoutes);
 
 // --- LOGICA DI GIOCO (GAME BALANCE) ---
-// Definisce quanto "cura" ogni azione in base al tipo di pianta
 const ACTION_VALUES = {
   tree: 20,             // Innaffia
   flowerbed: 20,        // Innaffia
@@ -83,20 +82,23 @@ io.on('connection', (socket) => {
       const tree = await Tree.findById(treeId);
       if (!tree) return;
       
-      // 1. Determina il guadagno di salute in base alla categoria
+      // 1. Definisci wasCritical PRIMA di modificare l'acqua (FIX IMPORTANTE)
+      const wasCritical = tree.waterLevel <= 20;
+
+      // 2. Determina il guadagno di salute
       const healthGain = ACTION_VALUES[tree.category] || ACTION_VALUES.default;
       
-      // 2. Applica l'incremento
+      // 3. Applica l'incremento
       tree.waterLevel = Math.min(tree.waterLevel + healthGain, 100);
       tree.status = calculateStatus(tree.waterLevel);
       await tree.save();
       
       io.emit('tree_updated', tree);
 
-      // 3. Log e XP Utente (Solo se loggato)
+      // 4. Log e XP Utente
       if (userId && userId !== 'guest') {
         
-        // Mappiamo la categoria al tipo di azione per il Log (per coerenza con ActionLog.js)
+        // Logica nome azione
         let actionName = 'water';
         if (['hedge', 'bush'].includes(tree.category)) actionName = 'prune';
         else if (['potted', 'succulent'].includes(tree.category)) actionName = 'treat';
@@ -110,7 +112,11 @@ io.on('connection', (socket) => {
         
         const user = await User.findById(userId);
         if (user) {
-          // Assegnazione XP (fissa a 15 per ora, modificabile se vuoi diversificare anche questo)
+          // --- PULIZIA DUPLICATI (FIX "10 BADGE") ---
+          // Rimuove i duplicati dall'array dei badge
+          user.badges = [...new Set(user.badges)];
+          
+          // Assegnazione XP
           user.xp += 15;
           const newLevel = Math.floor(user.xp / 100) + 1;
           
@@ -119,32 +125,33 @@ io.on('connection', (socket) => {
             user.level = newLevel;
             io.emit('level_up', { username: user.username, level: user.level });
             
-            // Sblocco Badge Livello 5
+            // Badge Livello 5
             if (newLevel >= 5 && !user.badges.includes('GREEN_THUMB')) {
               user.badges.push('GREEN_THUMB');
               io.emit('badge_unlocked', { username: user.username, badge: { name: 'Pollice Verde', desc: 'Raggiunto il livello 5!' } });
             }
           }
-          // Sblocco Badge Prima Azione
+
+          // Badge Prima Goccia
           if (!user.badges.includes('FIRST_DROP')) {
              user.badges.push('FIRST_DROP');
              io.emit('badge_unlocked', { username: user.username, badge: { name: 'Prima Goccia', desc: 'Hai curato la tua prima pianta.' } });
           }
 
-          // BADGE: SOCCORRITORE (Se era critico)
+          // Badge Soccorritore (Se era critico)
           if (wasCritical && !user.badges.includes('SAVER')) {
             user.badges.push('SAVER');
             io.emit('badge_unlocked', { username: user.username, badge: { name: 'Soccorritore', desc: 'Hai salvato una pianta critica!' } });
           }
 
-          // BADGE: GUFO NOTTURNO (Tra le 22:00 e le 05:00)
+          // Badge Gufo Notturno (22:00 - 05:00)
           const hour = new Date().getHours();
           if ((hour >= 22 || hour < 5) && !user.badges.includes('NIGHT_OWL')) {
             user.badges.push('NIGHT_OWL');
             io.emit('badge_unlocked', { username: user.username, badge: { name: 'Gufo Notturno', desc: 'Cura notturna effettuata.' } });
           }
 
-          // BADGE: VETERANO (20 Azioni totali)
+          // Badge Veterano (20 Azioni totali)
           const actionCount = await ActionLog.countDocuments({ user: userId, actionType: 'water' });
           if (actionCount >= 20 && !user.badges.includes('VETERAN')) {
             user.badges.push('VETERAN');
@@ -158,7 +165,7 @@ io.on('connection', (socket) => {
     } catch (e) { console.error(e); }
   });
 
-  // --- AZIONE ADMIN: FORZATURA ---
+  // --- AZIONE ADMIN ---
   socket.on('admin_force_water', async ({ treeId, amount }) => {
     try {
       const tree = await Tree.findById(treeId);
