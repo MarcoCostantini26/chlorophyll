@@ -13,12 +13,25 @@ const emit = defineEmits(['water-action', 'adopt-action']);
 const mapContainer = ref(null);
 const showHeatmap = ref(false);
 
+// --- NUOVA LISTA CITTÀ (4 CITTÀ) ---
+const cities = [
+  { name: 'Bologna', coords: [44.4949, 11.3426] },
+  { name: 'Cesena', coords: [44.1396, 12.2432] }, // Aggiunta Cesena
+  { name: 'Milano', coords: [45.4642, 9.1900] },
+  { name: 'Torino', coords: [45.0703, 7.6869] }
+];
+
 let map = null;
 let markersLayer = null;
 let heatLayers = []; 
 let markersMap = {}; 
 
-// --- CONFIGURAZIONE LOGICA ---
+const changeCity = (event) => {
+  const coords = event.target.value.split(',').map(Number);
+  if (map) map.flyTo(coords, 13, { duration: 1.5 });
+};
+
+// --- CONFIGURAZIONE ---
 const getPlantConfig = (category) => {
   const cat = category || 'tree';
   if (['hedge', 'bush'].includes(cat)) {
@@ -39,10 +52,27 @@ const getIcon = (tree) => {
   const status = tree.status;
   const config = getPlantConfig(tree.category);
   const color = status === 'healthy' ? '#2ecc71' : status === 'thirsty' ? '#f1c40f' : '#e74c3c';
+  
+  const html = `
+    <div style="
+      background-color: ${color};
+      width: 30px; height: 30px;
+      border-radius: 50%;
+      border: 2px solid white;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 16px;
+    ">
+      ${config.emoji}
+    </div>
+  `;
+
   return L.divIcon({
     className: 'custom-pin',
-    html: `<div style="background-color: ${color}; width: 30px; height: 30px; border-radius: 50%; border: 2px solid white; box-shadow: 0 2px 4px rgba(0,0,0,0.3); display: flex; align-items: center; justify-content: center; font-size: 16px;">${config.emoji}</div>`,
-    iconSize: [30, 30], iconAnchor: [15, 15]
+    html: html,
+    iconSize: [34, 34],
+    iconAnchor: [17, 17],
+    popupAnchor: [0, -17]
   });
 };
 
@@ -61,9 +91,22 @@ const createClusterIcon = (cluster) => {
 
 const createPopupContent = (tree) => {
   const isAdopted = props.user && props.user.adoptedTrees && props.user.adoptedTrees.includes(tree._id);
+  const isGuest = props.user && props.user.role === 'guest';
   const config = getPlantConfig(tree.category);
   const barColor = tree.waterLevel < 30 ? config.barColorLow : config.barColorHigh;
   const headerColor = tree.status === 'healthy' ? '#2ecc71' : tree.status === 'thirsty' ? '#f1c40f' : '#e74c3c';
+
+  let actionsHTML = '';
+  if (isGuest) {
+    actionsHTML = `<div class="guest-msg" style="color: #7f8c8d; font-style: italic; margin-top: 10px; font-size: 0.8rem;">👁️ Solo Visualizzazione</div>`;
+  } else {
+    actionsHTML = `
+        <div class="actions">
+           <button onclick="event.stopPropagation(); window.triggerWater('${tree._id}')" ${tree.waterLevel >= 100 ? 'disabled' : ''} class="btn-action">${config.actionLabel}</button>
+           <button onclick="event.stopPropagation(); window.triggerAdopt('${tree._id}')" class="btn-adopt ${isAdopted ? 'adopted' : ''}">${isAdopted ? '❤️ Tuo' : '🤍 Adotta'}</button>
+        </div>
+    `;
+  }
 
   return `
     <div class="popup-custom">
@@ -72,13 +115,8 @@ const createPopupContent = (tree) => {
         <h3>${tree.name}</h3>
         <p style="text-transform: uppercase; font-size: 0.75rem; color: #95a5a6; font-weight: bold; letter-spacing: 1px;">${config.typeLabel} • ${tree.species}</p>
         <div class="bar-container"><div class="bar-fill" style="width:${tree.waterLevel}%; background-color:${barColor};"></div></div>
-        
         <p>${config.statusLabel}: <strong class="val-text">${Math.round(tree.waterLevel)}%</strong></p>
-        
-        <div class="actions">
-           <button onclick="event.stopPropagation(); window.triggerWater('${tree._id}')" ${tree.waterLevel >= 100 ? 'disabled' : ''} class="btn-action">${config.actionLabel}</button>
-           <button onclick="event.stopPropagation(); window.triggerAdopt('${tree._id}')" class="btn-adopt ${isAdopted ? 'adopted' : ''}">${isAdopted ? '❤️ Tuo' : '🤍 Adotta'}</button>
-        </div>
+        ${actionsHTML} 
       </div>
     </div>
   `;
@@ -99,7 +137,6 @@ defineExpose({ flyToTree });
 const renderMap = () => {
   if (!map) return;
   
-  // Heatmap
   if (showHeatmap.value) {
     if (map.hasLayer(markersLayer)) map.removeLayer(markersLayer);
     heatLayers.forEach(l => map.removeLayer(l)); 
@@ -110,11 +147,13 @@ const renderMap = () => {
     const criticalPoints = [];
 
     props.trees.forEach(t => {
-      const lat = Number(t.location.lat);
-      const lng = Number(t.location.lng);
-      if (t.status === 'healthy') healthyPoints.push([lat, lng, 1.2]);
-      if (t.status === 'thirsty') thirstyPoints.push([lat, lng, 1.2]);
-      if (t.status === 'critical') criticalPoints.push([lat, lng, 1.2]);
+      if(t.location && t.location.lat) {
+          const lat = Number(t.location.lat);
+          const lng = Number(t.location.lng);
+          if (t.status === 'healthy') healthyPoints.push([lat, lng, 1.2]);
+          if (t.status === 'thirsty') thirstyPoints.push([lat, lng, 1.2]);
+          if (t.status === 'critical') criticalPoints.push([lat, lng, 1.2]);
+      }
     });
 
     const heatOpts = { radius: 60, blur: 40, minOpacity: 0.4, maxZoom: 14, max: 1.0 };
@@ -124,57 +163,33 @@ const renderMap = () => {
     return;
   }
 
-  // Markers
   heatLayers.forEach(l => map.removeLayer(l)); 
-  heatLayers = [];
   if (!map.hasLayer(markersLayer)) map.addLayer(markersLayer);
 
   props.trees.forEach(tree => {
     let marker = markersMap[tree._id];
-    const config = getPlantConfig(tree.category);
+    const icon = getIcon(tree);
 
     if (marker) {
-      marker.setIcon(getIcon(tree)); 
+      marker.setIcon(icon); 
       marker.treeStatus = tree.status;
-
-      const popup = marker.getPopup();
-      if (popup && popup.isOpen()) {
-        const popupEl = popup.getElement(); 
-        if (popupEl) {
-          const barFill = popupEl.querySelector('.bar-fill');
-          if (barFill) { barFill.style.width = `${tree.waterLevel}%`; barFill.style.backgroundColor = tree.waterLevel < 30 ? config.barColorLow : config.barColorHigh; }
-          
-          const valText = popupEl.querySelector('.val-text'); 
-          // QUI HO USATO Math.round() PER L'AGGIORNAMENTO LIVE
-          if (valText) valText.innerText = `${Math.round(tree.waterLevel)}%`;
-          
-          const btnAction = popupEl.querySelector('.btn-action');
-          if (btnAction) {
-             btnAction.innerText = config.actionLabel; 
-             if (tree.waterLevel >= 100) { btnAction.setAttribute('disabled', 'disabled'); btnAction.style.background = '#bdc3c7'; } else { btnAction.removeAttribute('disabled'); btnAction.style.background = null; }
-          }
-          
-          const header = popupEl.querySelector('.popup-header');
-          if (header) header.style.background = tree.status === 'healthy' ? '#2ecc71' : tree.status === 'thirsty' ? '#f1c40f' : '#e74c3c';
-
-          const btnAdopt = popupEl.querySelector('.btn-adopt');
-          if (btnAdopt) {
-            const isAdopted = props.user && props.user.adoptedTrees && props.user.adoptedTrees.includes(tree._id);
-            btnAdopt.innerHTML = isAdopted ? '❤️ Tuo' : '🤍 Adotta';
-            if (isAdopted) btnAdopt.classList.add('adopted');
-            else btnAdopt.classList.remove('adopted');
-          }
-        }
+      if (marker.getPopup()?.isOpen()) {
+         const el = marker.getPopup().getElement();
+         if(el) {
+             const bar = el.querySelector('.bar-fill');
+             const val = el.querySelector('.val-text');
+             if(bar) bar.style.width = tree.waterLevel + '%';
+             if(val) val.innerText = Math.round(tree.waterLevel) + '%';
+         }
       }
     } else {
-      marker = L.marker([tree.location.lat, tree.location.lng], { icon: getIcon(tree) });
-      marker.treeStatus = tree.status;
-      marker.bindPopup(() => {
-        const freshTree = props.trees.find(t => t._id === tree._id) || tree;
-        return createPopupContent(freshTree);
-      });
-      markersMap[tree._id] = marker; 
-      markersLayer.addLayer(marker);
+      if(tree.location && tree.location.lat) {
+          marker = L.marker([tree.location.lat, tree.location.lng], { icon: icon });
+          marker.treeStatus = tree.status;
+          marker.bindPopup(() => createPopupContent(props.trees.find(t => t._id === tree._id) || tree));
+          markersMap[tree._id] = marker; 
+          markersLayer.addLayer(marker);
+      }
     }
   });
   markersLayer.refreshClusters();
@@ -182,9 +197,9 @@ const renderMap = () => {
 
 const initMap = () => {
   if (map) return;
-  map = L.map(mapContainer.value).setView([44.4949, 11.3426], 13);
+  map = L.map(mapContainer.value).setView(cities[0].coords, 13);
   L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', { attribution: '&copy; OpenStreetMap', maxZoom: 19 }).addTo(map);
-  markersLayer = L.markerClusterGroup({ showCoverageOnHover: false, maxClusterRadius: 50, animate: true, animateAddingMarkers: true, spiderfyOnMaxZoom: true, iconCreateFunction: createClusterIcon });
+  markersLayer = L.markerClusterGroup({ showCoverageOnHover: false, maxClusterRadius: 50, iconCreateFunction: createClusterIcon });
 };
 
 onMounted(() => { initMap(); renderMap(); window.triggerWater = (id) => emit('water-action', id); window.triggerAdopt = (id) => emit('adopt-action', id); });
@@ -194,15 +209,30 @@ onBeforeUnmount(() => { if (map) { map.remove(); map = null; } markersMap = {}; 
 
 <template>
   <div class="map-wrapper">
-    <button class="toggle-heatmap-btn" :class="{ active: showHeatmap }" @click="showHeatmap = !showHeatmap">
-      {{ showHeatmap ? '📍 Mostra Piante' : '🔥 Mostra Heatmap' }}
-    </button>
+    <div class="map-controls">
+      
+      <div class="city-select-wrapper">
+        <select @change="changeCity" class="city-selector">
+          <option v-for="city in cities" :key="city.name" :value="city.coords">
+             📍 {{ city.name }}
+          </option>
+        </select>
+      </div>
+
+      <button class="toggle-heatmap-btn" :class="{ active: showHeatmap }" @click="showHeatmap = !showHeatmap">
+        {{ showHeatmap ? '📍 Mostra Piante' : '🔥 Mostra Heatmap' }}
+      </button>
+
+    </div>
     <div ref="mapContainer" class="map-container"></div>
   </div>
 </template>
 
 <style>
-/* CSS CLUSTER */
+/* STILE CONFERMATO */
+.custom-pin { background: transparent !important; border: none !important; }
+
+/* Clusters */
 .marker-cluster-small, .cluster-green { background-color: rgba(46, 204, 113, 0.6) !important; }
 .marker-cluster-small div, .cluster-green div { background-color: rgba(39, 174, 96, 0.8) !important; }
 .marker-cluster-medium, .cluster-yellow { background-color: rgba(241, 196, 15, 0.6) !important; }
@@ -211,44 +241,32 @@ onBeforeUnmount(() => { if (map) { map.remove(); map = null; } markersMap = {}; 
 .marker-cluster-large div, .cluster-red div { background-color: rgba(192, 57, 43, 0.8) !important; }
 .marker-cluster span { color: white; font-weight: bold; font-family: 'Inter', sans-serif; }
 
+/* Map Wrapper */
 .map-wrapper { position: relative; width: 100%; height: 500px; }
 .map-container { height: 100%; width: 100%; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 15px rgba(0,0,0,0.1); border: 4px solid #fff; z-index: 1; }
-.toggle-heatmap-btn { position: absolute; top: 15px; right: 15px; z-index: 20; background: white; border: 2px solid #2c3e50; color: #2c3e50; padding: 8px 15px; border-radius: 20px; font-weight: bold; cursor: pointer; box-shadow: 0 4px 10px rgba(0,0,0,0.2); transition: all 0.3s ease; font-family: 'Inter', sans-serif; }
-.toggle-heatmap-btn.active { background: #e74c3c; color: white; border-color: #c0392b; box-shadow: 0 0 15px rgba(231, 76, 60, 0.5); }
 
-/* POPUP E RESET LEAFLET */
+/* Controls Layout */
+.map-controls { position: absolute; top: 15px; left: 0; width: 100%; height: 0; z-index: 20; pointer-events: none; }
+.city-select-wrapper { pointer-events: auto; position: absolute; left: 50%; transform: translateX(-50%); top: 0; }
+.city-selector { background: white; border: 2px solid #2ecc71; color: #2c3e50; padding: 8px 15px; border-radius: 20px; font-weight: bold; cursor: pointer; box-shadow: 0 4px 15px rgba(0,0,0,0.3); outline: none; appearance: none; -webkit-appearance: none; padding-right: 30px; font-family: 'Inter', sans-serif; background-image: url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22292.4%22%20height%3D%22292.4%22%3E%3Cpath%20fill%3D%22%232ecc71%22%20d%3D%22M287%2069.4a17.6%2017.6%200%200%200-13-5.4H18.4c-5%200-9.3%201.8-12.9%205.4A17.6%2017.6%200%200%200%200%2082.2c0%205%201.8%209.3%205.4%2012.9l128%20127.9c3.6%203.6%207.8%205.4%2012.8%205.4s9.2-1.8%2012.8-5.4L287%2095c3.5-3.5%205.4-7.8%205.4-12.8%200-5-1.9-9.2-5.5-12.8z%22%2F%3E%3C%2Fsvg%3E"); background-repeat: no-repeat; background-position: right 10px top 50%; background-size: 10px auto; }
+.toggle-heatmap-btn { pointer-events: auto; position: absolute; right: 15px; top: 0; background: white; border: 2px solid #2c3e50; color: #2c3e50; padding: 8px 15px; border-radius: 20px; font-weight: bold; cursor: pointer; box-shadow: 0 4px 10px rgba(0,0,0,0.2); transition: all 0.3s ease; font-family: 'Inter', sans-serif; }
+.toggle-heatmap-btn.active { background: #e74c3c; color: white; border-color: #c0392b; }
+
+/* Popup CSS */
 .leaflet-popup-content-wrapper { padding: 0 !important; overflow: hidden; border-radius: 12px !important; }
 .leaflet-popup-content { margin: 0 !important; width: 220px !important; }
-
-.leaflet-container a.leaflet-popup-close-button {
-  color: white !important; 
-  font-size: 24px !important;
-  top: 5px !important;
-  right: 5px !important;
-  text-shadow: 0 1px 2px rgba(0,0,0,0.3);
-  z-index: 2000;
-  transition: color 0.2s ease, transform 0.2s; 
-}
-.leaflet-container a.leaflet-popup-close-button:hover {
-  color: #333 !important;
-  text-shadow: none;
-  transform: scale(1.1); 
-}
-
-/* LAYOUT POPUP */
+.leaflet-container a.leaflet-popup-close-button { color: white !important; font-size: 24px !important; top: 5px !important; right: 5px !important; text-shadow: 0 1px 2px rgba(0,0,0,0.3); z-index: 2000; }
 .popup-custom { text-align: center; width: 100%; font-family: 'Inter', sans-serif; }
 .popup-header { height: 12px; width: 100%; margin: 0; }
 .popup-body { padding: 15px; padding-top: 10px; }
 .popup-custom h3 { margin: 0; color: #2c3e50; font-size: 1.1rem; font-weight: 700; margin-top: 5px; }
-.popup-custom p { margin: 4px 0; font-size: 0.85rem; color: #7f8c8d; }
 .bar-container { width: 100%; height: 10px; background: #ecf0f1; border-radius: 5px; margin: 8px 0; overflow: hidden; border: 1px solid #bdc3c7; }
 .bar-fill { height: 100%; transition: width 0.8s ease-out, background-color 0.3s ease; }
 .actions { display: flex; gap: 8px; margin-top: 12px; }
-.popup-custom button { flex: 1; border: none; padding: 8px; border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 0.85rem; transition: transform 0.1s; }
+.popup-custom button { flex: 1; border: none; padding: 8px; border-radius: 6px; cursor: pointer; font-weight: bold; transition: transform 0.1s; }
 .popup-custom button:active { transform: scale(0.95); }
 .btn-action { background: #2ecc71; color: white; }
 .btn-action:disabled { background: #bdc3c7 !important; cursor: not-allowed; }
 .btn-adopt { background: white; border: 2px solid #e74c3c !important; color: #e74c3c; }
-.btn-adopt:hover { background: #fdedec; }
 .btn-adopt.adopted { background: #e74c3c; color: white; }
 </style>
