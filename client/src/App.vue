@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onMounted, computed, nextTick } from 'vue'; // Importa nextTick
+import { ref, onMounted, computed, nextTick } from 'vue';
 import { useRouter } from 'vue-router';
 import { io } from 'socket.io-client';
 
@@ -19,59 +19,62 @@ const showLevelUp = ref(false);
 const showBadgeModal = ref(false);
 const lastUnlockedBadge = ref({ name: '', desc: '' });
 
-// --- TRUCCO DEL BLINK ---
-// Questa variabile serve a "uccidere" e "resuscitare" i widget
+// Variabile per resettare i componenti
 const isWidgetAlive = ref(true);
 
-// --- LOGICA REATTIVA ---
-const isUser = computed(() => currentUser.value && currentUser.value.role !== 'city_manager');
+// --- LOGICA RUOLI ---
+// isUser è VERO solo se è un utente registrato (Green Guardian)
+const isUser = computed(() => currentUser.value && currentUser.value.role === 'green_guardian');
+// isAdmin è VERO solo se è City Manager
 const isAdmin = computed(() => currentUser.value && currentUser.value.role === 'city_manager');
+// isGuest è VERO se è Public Monitor (Nuovo!)
+const isGuest = computed(() => currentUser.value && currentUser.value.role === 'guest');
 
-// --- GESTIONE STATO ---
 const handleProfileUpdate = (updatedUser) => {
   currentUser.value = updatedUser; 
   localStorage.setItem('user', JSON.stringify(updatedUser)); 
 };
 
-// --- LOGIN CON BLINK ---
+// LOGIN NORMALE
 const handleLoginSuccess = async (user) => { 
-  // 1. Spegni i widget
   isWidgetAlive.value = false;
-  
-  // 2. Aggiorna l'utente
   currentUser.value = user; 
   localStorage.setItem('user', JSON.stringify(user));
-  
-  // 3. Aspetta che Vue abbia aggiornato il DOM (widget rimossi)
   await nextTick();
-  
-  // 4. Riaccendi i widget e cambia pagina
   isWidgetAlive.value = true;
   router.push('/');
 };
 
-// --- LOGOUT SICURO ---
+// --- NUOVO: ACCESSO OSPITE (SPETTATORE) ---
+const handleGuestAccess = async () => {
+  isWidgetAlive.value = false;
+  
+  // Creiamo un utente finto volatile (non salvato nel localStorage)
+  currentUser.value = {
+    _id: 'guest',
+    username: 'Public Monitor',
+    role: 'guest',
+    avatar: '👁️',
+    xp: 0,
+    level: 0,
+    badges: []
+  };
+
+  await nextTick();
+  isWidgetAlive.value = true;
+  router.push('/'); // Va alla dashboard
+};
+
 const handleLogout = async () => { 
-  console.log("LOGOUT INIZIATO");
-
-  // 1. Rimuovi l'utente dal localStorage (così se ricarichi sei sloggato)
   localStorage.removeItem('user');
-
-  // 2. NAVIGA PRIMA DI RESETTARE LA VARIABILE!
-  // Questo è il trucco: andiamo via dalla Dashboard finché i dati ci sono ancora.
-  // Così la Dashboard non crasha.
   await router.push('/login'); 
-  
-  // 3. ORA che siamo al sicuro nella login page, possiamo distruggere l'utente
-  isWidgetAlive.value = false; // Spegni widget
-  currentUser.value = null;    // Pulisci variabile reattiva
-  
-  // 4. Reset finale per i widget
+  isWidgetAlive.value = false;
+  currentUser.value = null;    
   await nextTick();
   isWidgetAlive.value = true;
 };
 
-// --- DATA FETCHING ---
+// DATA FETCHING
 const fetchTrees = async () => { 
   try {
     const res = await fetch('http://localhost:3000/api/trees'); 
@@ -79,10 +82,11 @@ const fetchTrees = async () => {
   } catch (e) { console.error(e); }
 };
 
-const waterTree = (treeId) => { if(currentUser.value) socket.emit('water_tree', { treeId, userId: currentUser.value._id }); };
+// AZIONI (Bloccate se guest, ma il controllo UI è nel componente figlio)
+const waterTree = (treeId) => { if(isUser.value) socket.emit('water_tree', { treeId, userId: currentUser.value._id }); };
 const forceWater = ({id, amt}) => { socket.emit('admin_force_water', { treeId: id, amount: amt }); };
 const toggleAdopt = async (treeId) => {
-  if (!currentUser.value) return;
+  if (!isUser.value) return; // Blocco adozione per guest
   try {
     const res = await fetch('http://localhost:3000/api/users/adopt', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -116,12 +120,15 @@ onMounted(() => {
       <div class="header-container">
         <div class="header-left">
           <h1 class="main-title">🍃 Chlorophyll</h1>
+          <span v-if="isGuest" class="guest-badge">👁️ SPETTATORE</span>
           <div :class="['status-pill', isConnected ? 'online' : 'offline']">{{ isConnected ? 'Online' : 'Offline' }}</div>
         </div>
         <nav class="main-nav">
           <router-link to="/" class="nav-item">🌲 Dashboard</router-link>
+          
+          <router-link v-if="!isAdmin && !isGuest" to="/profile" class="nav-item">👤 Profilo</router-link>
+          
           <router-link v-if="isAdmin" to="/admin/analytics" class="nav-item admin-link">🎛️ Control Room</router-link>
-          <router-link to="/profile" class="nav-item">👤 Profilo</router-link>
           <button @click="handleLogout" class="nav-item btn-logout">Esci 🚪</button>
         </nav>
       </div>
@@ -135,6 +142,7 @@ onMounted(() => {
           :weather="currentWeather"
           :isConnected="isConnected"
           @login-success="handleLoginSuccess"
+          @guest-access="handleGuestAccess" 
           @logout="handleLogout"
           @update-profile="handleProfileUpdate" 
           @water="waterTree"
@@ -145,19 +153,19 @@ onMounted(() => {
     </main>
     
     <template v-if="isWidgetAlive">
-      
       <UserChatWidget 
         v-if="isUser" 
         :key="'user-' + currentUser._id"
         :trees="trees" 
         :weather="currentWeather"
+        :user="currentUser"  
       />
 
       <AdminChatWidget 
         v-if="isAdmin"
         :key="'admin-' + currentUser._id"
+        :user="currentUser"   
       />
-      
     </template>
 
     <div v-if="showLevelUp" class="level-up-modal">🌟 LEVEL UP! 🌟</div>
@@ -169,7 +177,7 @@ onMounted(() => {
 </template>
 
 <style>
-/* CSS INVARIATO */
+/* ... CSS PRECEDENTE ... */
 html, body { margin: 0; padding: 0; width: 100%; font-family: 'Inter', sans-serif; background-color: #121212; color: #ecf0f1; }
 .app-header { position: fixed; top: 0; left: 0; width: 100%; height: 70px; background: #1e1e1e; border-bottom: 2px solid #333; box-shadow: 0 4px 12px rgba(0,0,0,0.3); z-index: 1000; }
 .header-container { display: flex; justify-content: space-between; align-items: center; height: 100%; padding: 0 30px; max-width: 1400px; margin: 0 auto; }
@@ -187,6 +195,10 @@ html, body { margin: 0; padding: 0; width: 100%; font-family: 'Inter', sans-seri
 .admin-link:hover { color: #8e44ad !important; text-shadow: 0 0 10px rgba(142, 68, 173, 0.4); }
 .btn-logout { color: #e74c3c !important; height: auto; border: 1px solid #e74c3c; padding: 6px 14px; border-radius: 20px; font-size: 0.85rem; line-height: 1; border-bottom: 1px solid #e74c3c !important; }
 .btn-logout:hover { background: #e74c3c; color: white !important; }
+
+/* NUOVO STILE BADGE GUEST */
+.guest-badge { background: #3498db; color: white; padding: 4px 10px; border-radius: 4px; font-weight: bold; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.5px; }
+
 .level-up-modal { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: #f1c40f; color: white; padding: 20px 40px; border-radius: 50px; font-size: 2rem; z-index: 3000; font-weight: 900; animation: popIn 0.5s; }
 .badge-modal { position: fixed; top: 30%; left: 50%; transform: translate(-50%, -50%); background: #2c3e50; border: 4px solid #f1c40f; color: white; padding: 30px; text-align: center; border-radius: 20px; z-index: 4000; animation: popIn 0.5s; min-width: 300px; }
 .badge-modal .badge-icon { font-size: 5rem; margin-bottom: 15px; display: block; }
