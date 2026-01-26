@@ -1,12 +1,29 @@
 <script setup>
 import { ref, nextTick } from 'vue';
 
-const props = defineProps(['trees', 'weather', 'user']); // Riceviamo 'user' per sapere gli ID
+const props = defineProps(['trees', 'weather', 'user']);
+
 const isOpen = ref(false);
 const isLoading = ref(false);
 const userMessage = ref('');
 const messages = ref([{ role: 'assistant', text: 'Ciao! 🌿 Sono Dr. Chlorophyll. Come stanno le tue piante?' }]);
 const chatBody = ref(null);
+
+// --- MAPPA MIGLIORATA ---
+// Aggiungiamo plurali e usiamo termini più comuni (Fioriera, Siepe)
+const CATEGORY_MAP = {
+  tree: '🌳 Albero',
+  trees: '🌳 Albero',
+  flowerbed: '🌻 Aiuola',
+  vertical_garden: '🧱 Giardino Verticale',
+  hedge: '✂️ Siepe',   
+  hedges: '✂️ Siepe', // Caso plurale DB
+  bush: '🌿 Cespuglio / Arbusto', // Sinonimo per aiutare l'AI
+  bushes: '🌿 Cespuglio / Arbusto',
+  potted: '🪴 Fioriera', // Usiamo il termine che piace a te
+  succulent: '🌵 Pianta Grassa',
+  default: '🌱 Pianta Generica' // Meglio di "Albero" se non sappiamo cos'è
+};
 
 const scrollToBottom = () => nextTick(() => { if (chatBody.value) chatBody.value.scrollTop = chatBody.value.scrollHeight; });
 
@@ -20,23 +37,27 @@ const sendMessage = async () => {
   isLoading.value = true;
 
   try {
-    // --- FIX LOGICA: FILTRIAMO SOLO GLI ALBERI DELL'UTENTE ---
-    
-    // 1. Assicuriamoci di avere un array di ID stringhe per il confronto sicuro
     const adoptedIds = (props.user?.adoptedTrees || []).map(id => String(id));
-    
-    // 2. Filtriamo la lista completa 'props.trees'
     const myTrees = props.trees.filter(t => adoptedIds.includes(String(t._id)));
 
-    // 3. Creiamo il sommario SOLO per i tuoi alberi
+    // Generazione Sommario
     const treesSummary = myTrees.length > 0
-      ? myTrees.map(t => `- ${t.name} (${t.status}): Acqua ${Math.round(t.waterLevel)}%`).join('\n')
-      : "L'utente non ha ancora adottato alberi.";
+      ? myTrees.map(t => {
+          // Normalizza in minuscolo e gestisce categorie mancanti
+          const rawCat = t.category ? t.category.toLowerCase() : 'default';
+          // Se la categoria non è nella mappa, usa default
+          const catLabel = CATEGORY_MAP[rawCat] || CATEGORY_MAP['default'];
+          
+          return `- [${catLabel}] ${t.name} (${t.status}): Acqua ${Math.round(t.waterLevel)}%`;
+        }).join('\n')
+      : "Nessuna pianta adottata.";
 
-    // 4. Prepariamo i dati per l'AI
+    // Debug: Apri la console (F12) per vedere se le tue siepi appaiono come [✂️ Siepe] o altro
+    console.log("AI Context Trees:", treesSummary);
+
     const contextData = { 
       weather: props.weather, 
-      trees_summary: treesSummary // L'AI riceverà solo la lista filtrata
+      trees_summary: treesSummary 
     };
 
     const res = await fetch('http://localhost:3000/api/ai/chat', {
