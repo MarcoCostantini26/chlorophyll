@@ -83,10 +83,17 @@ const fetchTrees = async () => {
 };
 
 // AZIONI (Bloccate se guest, ma il controllo UI è nel componente figlio)
-const waterTree = (treeId) => { if(isUser.value) socket.emit('water_tree', { treeId, userId: currentUser.value._id }); };
+const waterTree = (treeId) => { 
+  if (currentUser.value && currentUser.value.role !== 'guest') { 
+    socket.emit('water_tree', { treeId, userId: currentUser.value._id }); 
+  }
+};
+
 const forceWater = ({id, amt}) => { socket.emit('admin_force_water', { treeId: id, amount: amt }); };
+
 const toggleAdopt = async (treeId) => {
-  if (!isUser.value) return; // Blocco adozione per guest
+  // L'adozione invece la lasciamo SOLO agli utenti normali (l'Admin non adotta)
+  if (!isUser.value) return; 
   try {
     const res = await fetch('http://localhost:3000/api/users/adopt', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -125,10 +132,8 @@ onMounted(() => {
         </div>
         <nav class="main-nav">
           <router-link to="/" class="nav-item">🌲 Dashboard</router-link>
-          
-          <router-link v-if="!isAdmin && !isGuest" to="/profile" class="nav-item">👤 Profilo</router-link>
-          
           <router-link v-if="isAdmin" to="/admin/analytics" class="nav-item admin-link">🎛️ Control Room</router-link>
+          <router-link v-if="!isGuest" to="/profile" class="nav-item">👤 Profilo</router-link>
           <button @click="handleLogout" class="nav-item btn-logout">Esci 🚪</button>
         </nav>
       </div>
