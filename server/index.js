@@ -65,18 +65,25 @@ io.on('connection', (socket) => {
   console.log(`🔌 Utente connesso: ${socket.id}`);
   socket.emit('weather_update', getCurrentWeather());
 
+  // --- AZIONE INNAFFIA (CON LOGICA BADGE) ---
   socket.on('water_tree', async ({ treeId, userId }) => {
     try {
       const tree = await Tree.findById(treeId);
       if (!tree) return;
       
+      // 1. Check stato critico PRIMA dell'aggiornamento (Badge Saver)
+      const wasCritical = tree.waterLevel <= 20;
+
+      // 2. Aggiorna Albero
       tree.waterLevel = Math.min(tree.waterLevel + 20, 100);
       tree.status = calculateStatus(tree.waterLevel);
       await tree.save();
       
       io.emit('tree_updated', tree);
 
+      // 3. Logica Utente (XP e Badge)
       if (userId && userId !== 'guest') {
+        // Log azione nel DB
         await ActionLog.create({ 
             user: userId, tree: treeId, actionType: 'water', 
             details: `Azione completata. Livello: ${tree.waterLevel}%` 
@@ -84,21 +91,48 @@ io.on('connection', (socket) => {
         
         const user = await User.findById(userId);
         if (user) {
+          // Aumento XP
           user.xp += 15;
           const newLevel = Math.floor(user.xp / 100) + 1;
           
+          // LEVEL UP
           if (newLevel > user.level) {
             user.level = newLevel;
             io.emit('level_up', { username: user.username, level: user.level });
+            
+            // BADGE: POLLICE VERDE (Livello 5)
             if (newLevel >= 5 && !user.badges.includes('GREEN_THUMB')) {
               user.badges.push('GREEN_THUMB');
               io.emit('badge_unlocked', { username: user.username, badge: { name: 'Pollice Verde', desc: 'Raggiunto il livello 5!' } });
             }
           }
+
+          // BADGE: PRIMA GOCCIA
           if (!user.badges.includes('FIRST_DROP')) {
              user.badges.push('FIRST_DROP');
              io.emit('badge_unlocked', { username: user.username, badge: { name: 'Prima Goccia', desc: 'Hai curato la tua prima pianta.' } });
           }
+
+          // BADGE: SOCCORRITORE (Se era critico)
+          if (wasCritical && !user.badges.includes('SAVER')) {
+            user.badges.push('SAVER');
+            io.emit('badge_unlocked', { username: user.username, badge: { name: 'Soccorritore', desc: 'Hai salvato una pianta critica!' } });
+          }
+
+          // BADGE: GUFO NOTTURNO (Tra le 22:00 e le 05:00)
+          const hour = new Date().getHours();
+          if ((hour >= 22 || hour < 5) && !user.badges.includes('NIGHT_OWL')) {
+            user.badges.push('NIGHT_OWL');
+            io.emit('badge_unlocked', { username: user.username, badge: { name: 'Gufo Notturno', desc: 'Cura notturna effettuata.' } });
+          }
+
+          // BADGE: VETERANO (20 Azioni totali)
+          const actionCount = await ActionLog.countDocuments({ user: userId, actionType: 'water' });
+          if (actionCount >= 20 && !user.badges.includes('VETERAN')) {
+            user.badges.push('VETERAN');
+            io.emit('badge_unlocked', { username: user.username, badge: { name: 'Veterano', desc: '20 Innaffiature completate!' } });
+          }
+
           await user.save();
           io.emit('user_updated', user);
         }
@@ -106,6 +140,7 @@ io.on('connection', (socket) => {
     } catch (e) { console.error(e); }
   });
 
+  // --- AZIONE ADMIN (FORZA ACQUA) ---
   socket.on('admin_force_water', async ({ treeId, amount }) => {
     try {
       const tree = await Tree.findById(treeId);

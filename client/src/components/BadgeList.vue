@@ -5,12 +5,12 @@ const props = defineProps(['user']);
 const selectedBadge = ref(null);
 
 const allBadges = [
-  { id: 'FIRST_DROP', icon: '💧', name: 'Prima Goccia', desc: 'Il primo passo di un lungo viaggio.', criteria: 'Innaffia il tuo primo albero.' },
-  { id: 'SAVER', icon: '🚑', name: 'Soccorritore', desc: 'Un vero eroe della natura.', criteria: 'Salva un albero in stato "Critico" (Rosso).' },
-  { id: 'VETERAN', icon: '🎖️', name: 'Veterano', desc: 'La costanza è la chiave.', criteria: 'Effettua 20 innaffiature totali.' },
-  { id: 'NIGHT_OWL', icon: '🌙', name: 'Guardiano Notturno', desc: 'La natura non dorme mai.', criteria: 'Innaffia un albero tra le 22:00 e le 05:00.' },
-  { id: 'GREEN_THUMB', icon: '🌿', name: 'Pollice Verde', desc: 'La tua aura fa fiorire il deserto.', criteria: 'Raggiungi il Livello 5.' },
-  { id: 'ZEN_MASTER', icon: '🧘', name: 'Zen Master', desc: 'La pazienza è la virtù dei forti.', criteria: 'Mantieni la vegetazione sana per 24 ore.' }
+  { id: 'FIRST_DROP', icon: '💧', name: 'Prima Goccia', desc: 'Hai curato la tua prima pianta.', criteria: 'Effettua 1 innaffiatura.' },
+  { id: 'SAVER', icon: '🚑', name: 'Soccorritore', desc: 'Hai salvato una vita vegetale.', criteria: 'Innaffia un albero con acqua < 20%.' },
+  { id: 'VETERAN', icon: '🎖️', name: 'Veterano', desc: 'La costanza è la tua forza.', criteria: 'Raggiungi 20 innaffiature totali.' },
+  { id: 'NIGHT_OWL', icon: '🦉', name: 'Gufo Notturno', desc: 'La natura non dorme mai.', criteria: 'Innaffia tra le 22:00 e le 05:00.' },
+  { id: 'GREEN_THUMB', icon: '🌿', name: 'Pollice Verde', desc: 'Maestro della flora.', criteria: 'Raggiungi il livello 5.' },
+  { id: 'GUARDIAN', icon: '🛡️', name: 'Guardiano', desc: 'Hai adottato un albero.', criteria: 'Adotta un albero dalla dashboard.' }
 ];
 
 const hasBadge = (badgeId) => props.user && props.user.badges && props.user.badges.includes(badgeId);

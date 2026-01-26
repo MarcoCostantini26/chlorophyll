@@ -23,17 +23,16 @@ router.get('/leaderboard', async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-// PUT /api/users/:id (Modifica Profilo: Avatar e Username)
+// PUT /api/users/:id (Modifica Profilo)
 router.put('/:id', async (req, res) => {
   try {
     const { id } = req.params;
-    const { avatar, username } = req.body; // <--- ORA ACCETTA ANCHE USERNAME
+    const { avatar, username } = req.body;
     
     const updateData = {};
     if (avatar) updateData.avatar = avatar;
     if (username) updateData.username = username;
 
-    // Controlla se username esiste già (se cambiato)
     if (username) {
       const exists = await User.findOne({ username, _id: { $ne: id } });
       if (exists) return res.status(400).json({ error: "Username già in uso!" });
@@ -48,7 +47,7 @@ router.put('/:id', async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-// POST /api/users/adopt
+// POST /api/users/adopt (CON LOGICA BADGE GUARDIANO)
 router.post('/adopt', async (req, res) => {
   try {
     const { userId, treeId } = req.body;
@@ -58,10 +57,24 @@ router.post('/adopt', async (req, res) => {
 
     if (!user.adoptedTrees) user.adoptedTrees = [];
     const index = user.adoptedTrees.indexOf(treeId);
+    
     if (index > -1) {
+      // Rimozione adozione
       user.adoptedTrees.splice(index, 1);
     } else {
+      // Nuova Adozione
       user.adoptedTrees.push(treeId);
+
+      // BADGE: GUARDIANO
+      if (!user.badges.includes('GUARDIAN')) {
+        user.badges.push('GUARDIAN');
+        if (req.io) {
+          req.io.emit('badge_unlocked', { 
+            username: user.username, 
+            badge: { name: 'Guardiano', desc: 'Hai adottato il tuo primo albero.' } 
+          });
+        }
+      }
     }
 
     user.markModified('adoptedTrees');
