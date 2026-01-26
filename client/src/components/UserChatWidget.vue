@@ -1,7 +1,7 @@
 <script setup>
 import { ref, nextTick } from 'vue';
 
-const props = defineProps(['trees', 'weather']);
+const props = defineProps(['trees', 'weather', 'user']); // Riceviamo 'user' per sapere gli ID
 const isOpen = ref(false);
 const isLoading = ref(false);
 const userMessage = ref('');
@@ -12,6 +12,7 @@ const scrollToBottom = () => nextTick(() => { if (chatBody.value) chatBody.value
 
 const sendMessage = async () => {
   if (!userMessage.value.trim() || isLoading.value) return;
+  
   const text = userMessage.value;
   messages.value.push({ role: 'user', text });
   userMessage.value = '';
@@ -19,15 +20,45 @@ const sendMessage = async () => {
   isLoading.value = true;
 
   try {
-    const contextData = { weather: props.weather, trees_summary: props.trees.map(t => `${t.name} (${t.status})`) };
+    // --- FIX LOGICA: FILTRIAMO SOLO GLI ALBERI DELL'UTENTE ---
+    
+    // 1. Assicuriamoci di avere un array di ID stringhe per il confronto sicuro
+    const adoptedIds = (props.user?.adoptedTrees || []).map(id => String(id));
+    
+    // 2. Filtriamo la lista completa 'props.trees'
+    const myTrees = props.trees.filter(t => adoptedIds.includes(String(t._id)));
+
+    // 3. Creiamo il sommario SOLO per i tuoi alberi
+    const treesSummary = myTrees.length > 0
+      ? myTrees.map(t => `- ${t.name} (${t.status}): Acqua ${Math.round(t.waterLevel)}%`).join('\n')
+      : "L'utente non ha ancora adottato alberi.";
+
+    // 4. Prepariamo i dati per l'AI
+    const contextData = { 
+      weather: props.weather, 
+      trees_summary: treesSummary // L'AI riceverà solo la lista filtrata
+    };
+
     const res = await fetch('http://localhost:3000/api/ai/chat', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ message: text, history: messages.value.slice(-6), context: contextData })
+      method: 'POST', 
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ 
+        message: text, 
+        history: messages.value.slice(-6), 
+        context: contextData,
+        isAdmin: false
+      })
     });
+    
     const data = await res.json();
     messages.value.push({ role: 'assistant', text: data.message });
-  } catch (e) { messages.value.push({ role: 'assistant', text: "Errore connessione AI." }); } 
-  finally { isLoading.value = false; scrollToBottom(); }
+  } catch (e) { 
+    console.error(e);
+    messages.value.push({ role: 'assistant', text: "Errore connessione AI." }); 
+  } finally { 
+    isLoading.value = false; 
+    scrollToBottom(); 
+  }
 };
 </script>
 

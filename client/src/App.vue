@@ -178,8 +178,20 @@ onMounted(() => {
     </main>
     
     <template v-if="isWidgetAlive && currentUser && !route.meta.hideChat">
-      <UserChatWidget v-if="isUser" :key="'user-' + currentUser._id" :trees="trees" :weather="currentWeather" :user="currentUser" />
-      <AdminChatWidget v-if="isAdmin" :key="'admin-' + currentUser._id" :user="currentUser" />
+      <UserChatWidget 
+        v-if="isUser" 
+        :key="'user-' + currentUser._id" 
+        :trees="trees" 
+        :weather="currentWeather" 
+        :user="currentUser" 
+      />
+      
+      <AdminChatWidget 
+        v-if="isAdmin" 
+        :key="'admin-' + currentUser._id" 
+        :user="currentUser"
+        :trees="trees" 
+      />
     </template>
 
     <div v-if="showLevelUp" class="level-up-modal">🌟 LEVEL UP! 🌟</div>
