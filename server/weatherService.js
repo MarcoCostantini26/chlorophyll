@@ -3,8 +3,12 @@ const Tree = require('./models/Tree');
 // INTERVALLO: 10 MINUTI
 const TICK_RATE = 600000; 
 
-// COORDINATE DI DEFAULT (Per l'icona della UI principale)
+// COORDINATE DI DEFAULT
 const DEFAULT_CITY = { lat: 44.4949, lng: 11.3426 }; // Bologna
+
+// --- MEMORIA GLOBALE DEL METEO ---
+let currentMap = {}; 
+// ---------------------------------
 
 const calculateStatus = (level) => {
   if (level >= 60) return 'healthy';
@@ -12,7 +16,6 @@ const calculateStatus = (level) => {
   return 'critical';
 };
 
-// CONFIGURAZIONE PROBABILITÀ
 const WEATHER_CHANCE = {
   tree:            { sunny: 0.15,  cloudy: 0.05,  rainy: 1.0 }, 
   flowerbed:       { sunny: 0.20,  cloudy: 0.10,  rainy: 1.0 },
@@ -28,7 +31,22 @@ const CHANGE_AMOUNT = {
   sunny: -1,  cloudy: -1, rainy: +3   
 };
 
-// --- BACKFILLING GRADUALE (Recupero Offline) ---
+const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
+const fetchCityName = async (lat, lng) => {
+  try {
+    await sleep(1000); 
+    const url = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`;
+    const res = await fetch(url, { headers: { 'User-Agent': 'ChlorophyllApp/1.0' } });
+    if (!res.ok) return null;
+    const data = await res.json();
+    return data.address?.city || data.address?.town || data.address?.village || data.address?.municipality || 'Zona Sconosciuta';
+  } catch (e) {
+    console.error("⚠️ Errore Reverse Geocoding:", e.message);
+    return null;
+  }
+};
+
 const fillMissingHistoryOnStart = async () => {
   console.log("🔄 [Meteo] Backfilling Graduale...");
   try {
@@ -46,16 +64,13 @@ const fillMissingHistoryOnStart = async () => {
       const missedTicks = Math.floor(diffMs / TICK_RATE);
 
       if (missedTicks > 2) {
-        // Simuliamo scenario 'sunny' per penalità offline
         const chance = WEATHER_CHANCE[tree.category]?.sunny || WEATHER_CHANCE.default.sunny;
         const totalLoss = Math.floor(missedTicks * chance);
 
         if (totalLoss > 0) {
-          // Creiamo un punto ogni ORA circa (6 tick)
           const pointsToCreate = Math.ceil(missedTicks / 6); 
           const lossPerPoint = totalLoss / pointsToCreate;
           const timeStep = diffMs / pointsToCreate;
-          
           let simVal = lastEntry.val;
           let currentVal = tree.waterLevel;
 
@@ -63,70 +78,77 @@ const fillMissingHistoryOnStart = async () => {
             const simDate = new Date(lastDate.getTime() + (i * timeStep));
             simVal = Math.max(simVal - lossPerPoint, 0);
             const finalVal = Math.round(simVal * 100) / 100;
-            
             tree.history.push({ val: finalVal, date: simDate });
             currentVal = finalVal;
           }
-
           tree.waterLevel = currentVal;
           tree.status = calculateStatus(currentVal);
           tree.lastWatered = now;
-          
           if (tree.history.length > 100) tree.history = tree.history.slice(-100);
-          
           await tree.save();
           totalPointsAdded += pointsToCreate;
         }
       }
     }
-    console.log(`✅ Backfilling: Generati ${totalPointsAdded} punti interpolati.`);
-  } catch (e) {
-    console.error("❌ Errore Backfilling:", e);
-  }
+    console.log(`✅ Backfilling completato.`);
+  } catch (e) { console.error("❌ Errore Backfilling:", e); }
 };
 
-// --- LOGICA MULTI-CITTÀ ---
 const processGroupsWeather = async (io) => {
   try {
-    const allTrees = await Tree.find();
-    if (allTrees.length === 0) return;
+    const allTreesBasic = await Tree.find({}, 'location city');
+    if (allTreesBasic.length === 0) return;
 
-    // 1. Raggruppa alberi per coordinate simili (Arrotondate a 1 decimale ~= 10km)
     const groups = {};
-    for (const tree of allTrees) {
-      if (!tree.location || !tree.location.lat) continue;
-      // Chiave univoca per zona (es: "45.5_9.2" per Milano)
-      const key = `${tree.location.lat.toFixed(1)}_${tree.location.lng.toFixed(1)}`;
-      if (!groups[key]) groups[key] = { lat: tree.location.lat, lng: tree.location.lng, trees: [] };
-      groups[key].trees.push(tree);
+    for (const t of allTreesBasic) {
+      if (!t.location || !t.location.lat) continue;
+      const key = `${t.location.lat.toFixed(1)}_${t.location.lng.toFixed(1)}`;
+      
+      if (!groups[key]) {
+        groups[key] = { lat: t.location.lat, lng: t.location.lng, cityName: t.city, treeIds: [] };
+      }
+      if (!groups[key].cityName && t.city && t.city !== '⏳ ...') {
+        groups[key].cityName = t.city;
+      }
+      groups[key].treeIds.push(t._id);
     }
 
     let totalUpdates = 0;
-    let mainWeather = 'sunny'; // Meteo di default per la UI
+    const cityWeatherMap = {}; 
+    let mainWeather = 'sunny'; 
 
-    // 2. Processa ogni gruppo
     for (const key in groups) {
       const group = groups[key];
       
-      // Chiamata API per questo gruppo
-      const response = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${group.lat}&longitude=${group.lng}&current_weather=true`);
-      const data = await response.json();
-      
-      let weather = 'sunny';
-      if (data && data.current_weather) {
-        const code = data.current_weather.weathercode;
-        if (code <= 1) weather = 'sunny';
-        else if (code <= 48) weather = 'cloudy';
-        else weather = 'rainy';
+      if (!group.cityName || group.cityName === '⏳ ...') {
+        const foundName = await fetchCityName(group.lat, group.lng);
+        if (foundName) group.cityName = foundName;
       }
 
-      // Se questo gruppo è vicino alle coordinate di default (Bologna), usalo per la UI
+      let weather = 'sunny';
+      try {
+        const response = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${group.lat}&longitude=${group.lng}&current_weather=true`);
+        const data = await response.json();
+        if (data && data.current_weather) {
+          const code = data.current_weather.weathercode;
+          if (code <= 1) weather = 'sunny';
+          else if (code <= 48) weather = 'cloudy';
+          else weather = 'rainy';
+        }
+      } catch(err) { console.error("API Meteo Error:", err.message); }
+
+      const mapKey = group.cityName || `Zona ${key}`;
+      cityWeatherMap[mapKey] = weather;
+
       if (Math.abs(group.lat - DEFAULT_CITY.lat) < 0.2 && Math.abs(group.lng - DEFAULT_CITY.lng) < 0.2) {
         mainWeather = weather;
       }
 
-      // Applica effetti agli alberi del gruppo
-      for (const tree of group.trees) {
+      const freshTrees = await Tree.find({ _id: { $in: group.treeIds } });
+
+      for (const tree of freshTrees) {
+        if (group.cityName && (!tree.city || tree.city === '⏳ ...')) tree.city = group.cityName;
+
         const chances = WEATHER_CHANCE[tree.category] || WEATHER_CHANCE.default;
         let chance = 0, amount = 0;
 
@@ -134,31 +156,34 @@ const processGroupsWeather = async (io) => {
         else if (weather === 'sunny') { chance = chances.sunny; amount = CHANGE_AMOUNT.sunny; }
         else { chance = chances.cloudy; amount = CHANGE_AMOUNT.cloudy; }
 
-        if (Math.random() > chance) continue; // Dado
+        if (Math.random() <= chance) {
+          const oldWater = tree.waterLevel;
+          let newVal = Math.min(Math.max(tree.waterLevel + amount, 0), 100);
 
-        const oldWater = tree.waterLevel;
-        let newVal = Math.min(Math.max(tree.waterLevel + amount, 0), 100);
-
-        if (newVal !== oldWater) {
-          tree.waterLevel = newVal;
-          tree.status = calculateStatus(newVal);
-          if (!tree.history) tree.history = [];
-          tree.history.push({ val: newVal, date: new Date() });
-          if (tree.history.length > 50) tree.history.shift();
-          await tree.save();
-          totalUpdates++;
+          if (newVal !== oldWater) {
+            tree.waterLevel = newVal;
+            tree.status = calculateStatus(newVal);
+            if (!tree.history) tree.history = [];
+            tree.history.push({ val: newVal, date: new Date() });
+            if (tree.history.length > 50) tree.history.shift();
+            totalUpdates++;
+          }
+        }
+        if (tree.isModified()) {
+          try { await tree.save(); } catch (e) {}
         }
       }
     }
 
-    // 3. Eventi
+    currentMap = cityWeatherMap; 
+
+    io.emit('weather_map_update', cityWeatherMap);
+    
     if (totalUpdates > 0) {
       const updatedTrees = await Tree.find();
       io.emit('trees_refresh', updatedTrees);
-      console.log(`🌍 Meteo Applicato: ${totalUpdates} alberi aggiornati.`);
+      console.log(`🌲 Foresta: ${totalUpdates} mod. | Città: ${Object.keys(cityWeatherMap).length}`);
     }
-    
-    // Manda sempre un meteo "generale" per non rompere l'icona in alto a destra
     io.emit('weather_update', mainWeather);
 
   } catch (e) {
@@ -167,14 +192,14 @@ const processGroupsWeather = async (io) => {
 };
 
 const startWeatherSimulation = async (io) => {
-  console.log(`🌦️ Avvio Meteo Geografico (Update ogni 10 min)`);
+  console.log(`🌦️ Avvio Meteo (Update ogni 10 min)`);
   await fillMissingHistoryOnStart();
-  
   processGroupsWeather(io);
   setInterval(() => processGroupsWeather(io), TICK_RATE); 
 };
 
-// Export dummy per compatibilità
+// --- EXPORT CORRETTO ---
 const getCurrentWeather = () => 'sunny'; 
+const getLastWeatherMap = () => currentMap;
 
-module.exports = { startWeatherSimulation, getCurrentWeather };
+module.exports = { startWeatherSimulation, getCurrentWeather, getLastWeatherMap };

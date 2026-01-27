@@ -1,44 +1,31 @@
 const mongoose = require('mongoose');
 
 const TreeSchema = new mongoose.Schema({
-  name: { 
+  name: { type: String, required: true },
+  category: { 
     type: String, 
-    required: true 
-  },
-  // Categorie estese per il verde urbano
-  category: {
-    type: String,
-    enum: ['tree', 'flowerbed', 'hedge', 'bush', 'vertical_garden', 'potted', 'succulent'],
-    default: 'tree'
-  },
-  species: { 
-    type: String, 
-    required: true 
+    enum: ['tree', 'flowerbed', 'vertical_garden', 'hedge', 'bush', 'potted', 'succulent'],
+    default: 'tree' 
   },
   location: {
     lat: { type: Number, required: true },
     lng: { type: Number, required: true }
   },
-  waterLevel: { 
-    type: Number, 
-    default: 100,
-    min: 0,
-    max: 100
-  },
-  status: {
-    type: String,
-    enum: ['healthy', 'thirsty', 'critical'],
-    default: 'healthy'
-  },
-  // --- NUOVO CAMPO: STORICO ---
-  history: [{
-    val: Number,
-    date: { type: Date, default: Date.now }
-  }],
-  lastWatered: {
-    type: Date,
-    default: Date.now
-  }
+  
+  // 👇 AGGIUNGI QUESTA RIGA QUI! 👇
+  city: { type: String, default: null }, 
+  // 👆 SENZA QUESTA, IL DB NON SALVA NULLA! 👆
+
+  waterLevel: { type: Number, default: 100 },
+  status: { type: String, default: 'healthy' },
+  history: [
+    {
+      val: Number,
+      date: { type: Date, default: Date.now }
+    }
+  ],
+  lastWatered: { type: Date, default: Date.now },
+  plantedDate: { type: Date, default: Date.now }
 });
 
 module.exports = mongoose.model('Tree', TreeSchema);

@@ -16,8 +16,8 @@ const usersRoutes = require('./routes/users');
 const adminRoutes = require('./routes/admin');
 const aiRoutes = require('./routes/ai');
 
-// Servizio Meteo
-const { startWeatherSimulation, getCurrentWeather } = require('./weatherService');
+// 👇 IMPORT AGGIORNATO: Importa tutte e 3 le funzioni necessarie
+const { startWeatherSimulation, getCurrentWeather, getLastWeatherMap } = require('./weatherService'); 
 
 const app = express();
 const server = http.createServer(app);
@@ -33,7 +33,6 @@ app.use(express.json());
 mongoose.connect(MONGO_URI)
   .then(async () => {
     console.log('🍃 MongoDB Connesso');
-    // Il recupero offline ora è gestito dentro weatherService all'avvio
   })
   .catch(err => console.error('❌ Errore MongoDB:', err));
 
@@ -62,12 +61,20 @@ const calculateStatus = (level) => {
   return 'critical';
 };
 
-// Avvia il meteo (che farà anche il backfilling iniziale)
+// Avvia il meteo
 startWeatherSimulation(io);
 
 io.on('connection', (socket) => {
   console.log(`🔌 Utente connesso: ${socket.id}`);
+
+  // 1. Manda Meteo Istantaneo (Legacy)
+  // Ora funziona perché getCurrentWeather è importato correttamente
   socket.emit('weather_update', getCurrentWeather());
+
+  // 2. Manda Mappa Meteo Aggiornata SUBITO (NUOVO!)
+  // Recupera l'ultima mappa dalla memoria e la invia subito
+  const currentMap = getLastWeatherMap();
+  socket.emit('weather_map_update', currentMap);
 
   // --- AZIONE INNAFFIA ---
   socket.on('water_tree', async ({ treeId, userId }) => {
@@ -82,13 +89,12 @@ io.on('connection', (socket) => {
       let newLevel = tree.waterLevel + healthGain;
       if (newLevel > 100) newLevel = 100;
 
-      // === FIX: UN PUNTO PER MINUTO ===
+      // UN PUNTO PER MINUTO
       const lastEntry = tree.history.length > 0 ? tree.history[tree.history.length - 1] : null;
       let isSameMinute = false;
 
       if (lastEntry) {
         const lastDate = new Date(lastEntry.date);
-        // Controlla se Anno, Mese, Giorno, Ora e Minuto sono uguali
         if (lastDate.getFullYear() === now.getFullYear() &&
             lastDate.getMonth() === now.getMonth() &&
             lastDate.getDate() === now.getDate() &&
@@ -99,20 +105,16 @@ io.on('connection', (socket) => {
       }
 
       if (isSameMinute) {
-        // Sovrascrivi l'ultimo punto
         lastEntry.val = newLevel;
         lastEntry.date = now;
       } else {
-        // Crea nuovo punto
         tree.history.push({ val: newLevel, date: now });
       }
-      // ================================
 
       tree.waterLevel = newLevel;
       tree.lastWatered = now;
       tree.status = calculateStatus(newLevel);
 
-      // Limita storico
       if (tree.history.length > 50) tree.history.shift();
 
       await tree.save();
@@ -121,7 +123,7 @@ io.on('connection', (socket) => {
       const allTrees = await Tree.find();
       io.emit('trees_refresh', allTrees);
 
-      // Gestione XP e Badge (Invariata)
+      // Gestione XP
       if (userId && userId !== 'guest') {
         let actionName = 'water';
         if (['hedge', 'bush'].includes(tree.category)) actionName = 'prune';
@@ -180,7 +182,6 @@ io.on('connection', (socket) => {
       const now = new Date();
       let newLevel = Math.min(Math.max(tree.waterLevel + amount, 0), 100);
       
-      // === FIX: UN PUNTO PER MINUTO ===
       const lastEntry = tree.history.length > 0 ? tree.history[tree.history.length - 1] : null;
       let isSameMinute = false;
 
@@ -197,13 +198,11 @@ io.on('connection', (socket) => {
       } else {
         tree.history.push({ val: newLevel, date: now });
       }
-      // ================================
 
       tree.waterLevel = newLevel;
       tree.lastWatered = now;
       tree.status = calculateStatus(tree.waterLevel);
       
-      // Limita storico
       if (tree.history.length > 50) tree.history.shift();
 
       await tree.save();
