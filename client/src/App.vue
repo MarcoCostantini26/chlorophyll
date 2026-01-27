@@ -21,6 +21,30 @@ const showBadgeModal = ref(false);
 const lastUnlockedBadge = ref({ name: '', desc: '' });
 const isWidgetAlive = ref(true);
 
+// --- SISTEMA NOTIFICHE METEO (FIXED) ---
+const weatherAlert = ref(null); 
+
+const triggerWeatherAlert = (condition) => {
+  // FIX: Accetta sia 'rain' che 'rainy' (come lo manda il server)
+  if (condition === 'rain' || condition === 'rainy') {
+    weatherAlert.value = {
+      title: 'STA PIOVENDO! 🌧️',
+      msg: 'Ottima notizia! La natura sta innaffiando le piante per te.',
+      type: 'rain' // Usiamo 'rain' per attivare la classe CSS corretta
+    };
+  } else if (condition === 'sunny') {
+    weatherAlert.value = {
+      title: 'È TORNATO IL SOLE ☀️',
+      msg: 'Il terreno inizierà ad asciugarsi. Tieni d\'occhio l\'umidità!',
+      type: 'sunny'
+    };
+  }
+
+  if (weatherAlert.value) {
+    setTimeout(() => { weatherAlert.value = null; }, 6000);
+  }
+};
+
 // --- LOGICA RUOLI ---
 const isUser = computed(() => currentUser.value && currentUser.value.role === 'green_guardian');
 const isAdmin = computed(() => currentUser.value && currentUser.value.role === 'city_manager');
@@ -41,16 +65,7 @@ const handleLoginSuccess = async (user) => {
 
 const handleGuestAccess = async () => {
   isWidgetAlive.value = false;
-  const guestUser = {
-    _id: 'guest',
-    username: 'Public Monitor',
-    role: 'guest',
-    avatar: '👁️',
-    xp: 0,
-    level: 0,
-    badges: [],
-    adoptedTrees: []
-  };
+  const guestUser = { _id: 'guest', username: 'Public Monitor', role: 'guest', avatar: '👁️', xp: 0, level: 0, badges: [], adoptedTrees: [] };
   handleProfileUpdate(guestUser);
   await nextTick();
   isWidgetAlive.value = true;
@@ -99,9 +114,27 @@ onMounted(() => {
   fetchTrees();
   socket.on('connect', () => isConnected.value = true);
   socket.on('disconnect', () => isConnected.value = false);
-  socket.on('tree_updated', (t) => { const idx = trees.value.findIndex(x => x._id === t._id); if (idx !== -1) { trees.value[idx] = t; trees.value = [...trees.value]; } });
+  
+  socket.on('tree_updated', (t) => { 
+    const idx = trees.value.findIndex(x => x._id === t._id); 
+    if (idx !== -1) { 
+      trees.value[idx] = t; 
+      trees.value = [...trees.value]; 
+    } 
+  });
+  
   socket.on('trees_refresh', (all) => trees.value = all);
-  socket.on('weather_update', (w) => { if (w !== currentWeather.value) currentWeather.value = w; });
+  
+  // FIX METEO: Ora accetta anche 'rainy'
+  socket.on('weather_update', (w) => { 
+    if (w !== currentWeather.value) {
+      currentWeather.value = w;
+      if (w === 'rain' || w === 'rainy' || w === 'sunny') {
+        triggerWeatherAlert(w);
+      }
+    }
+  });
+  
   socket.on('user_updated', (u) => { if (currentUser.value && currentUser.value._id === u._id) handleProfileUpdate(u); });
   socket.on('level_up', () => { showLevelUp.value = true; setTimeout(() => showLevelUp.value = false, 3000); });
   socket.on('badge_unlocked', (d) => { if (currentUser.value?.username === d.username) { lastUnlockedBadge.value = d.badge; showBadgeModal.value = true; setTimeout(() => showBadgeModal.value = false, 4000); } });
@@ -156,14 +189,27 @@ onMounted(() => {
       <AdminChatWidget v-if="isAdmin" :key="'admin-' + currentUser._id" :user="currentUser" :trees="trees" />
     </template>
 
+    <transition name="drop-in">
+      <div v-if="weatherAlert" class="weather-banner" :class="weatherAlert.type">
+        <div class="weather-icon">
+          {{ weatherAlert.type === 'rain' ? '🌧️' : '☀️' }}
+        </div>
+        <div class="weather-content">
+          <h3>{{ weatherAlert.title }}</h3>
+          <p>{{ weatherAlert.msg }}</p>
+        </div>
+      </div>
+    </transition>
+
     <div v-if="showLevelUp" class="level-up-modal">🌟 LEVEL UP! 🌟</div>
     <div v-if="showBadgeModal" class="badge-modal"><div class="badge-icon">🏆</div><h3>BADGE SBLOCCATO!</h3><p>{{ lastUnlockedBadge.name }}</p></div>
+
   </div>
 </template>
 
 <style>
+/* CSS BASE INVARIATO */
 .app-root { display: flex; flex-direction: column; min-height: 100vh; }
-
 html, body { margin: 0; padding: 0; width: 100%; font-family: 'Inter', sans-serif; background-color: #121212; color: #ecf0f1; }
 .app-header { position: fixed; top: 0; left: 0; width: 100%; height: 70px; background: #1e1e1e; border-bottom: 2px solid #333; box-shadow: 0 4px 12px rgba(0,0,0,0.3); z-index: 1000; }
 .header-container { display: flex; justify-content: space-between; align-items: center; height: 100%; padding: 0 30px; max-width: 1400px; margin: 0 auto; }
@@ -171,11 +217,9 @@ html, body { margin: 0; padding: 0; width: 100%; font-family: 'Inter', sans-seri
 .content-wrapper { max-width: 1400px; margin: 0 auto; padding: 0 20px; }
 .header-left { display: flex; align-items: center; gap: 15px; }
 
-/* FIX STILE LINK TITOLO */
 .brand-link { text-decoration: none; display: flex; align-items: center; transition: transform 0.2s; }
 .brand-link:hover { transform: scale(1.02); cursor: pointer; }
 .main-title { color: #2ecc71; font-size: 1.5rem; margin: 0; font-weight: 800; } 
-
 .status-pill { padding: 4px 10px; border-radius: 20px; font-size: 0.75rem; font-weight: bold; color: white; text-transform: uppercase; }
 .online { background: #2ecc71; } .offline { background: #e74c3c; }
 .main-nav { display: flex; gap: 20px; align-items: center; }
@@ -191,4 +235,36 @@ html, body { margin: 0; padding: 0; width: 100%; font-family: 'Inter', sans-seri
 .badge-modal { position: fixed; top: 30%; left: 50%; transform: translate(-50%, -50%); background: #2c3e50; border: 4px solid #f1c40f; color: white; padding: 30px; text-align: center; border-radius: 20px; z-index: 4000; animation: popIn 0.5s; min-width: 300px; }
 .badge-modal .badge-icon { font-size: 5rem; margin-bottom: 15px; display: block; }
 @keyframes popIn { from { transform: translate(-50%, -50%) scale(0.8); opacity: 0; } to { transform: translate(-50%, -50%) scale(1); opacity: 1; }}
+
+/* --- STILI NUOVI: BANNER METEO --- */
+.weather-banner {
+  position: fixed; top: 85px; left: 50%; transform: translateX(-50%);
+  width: 90%; max-width: 500px;
+  display: flex; align-items: center; gap: 15px;
+  padding: 15px 25px;
+  border-radius: 50px; /* Arrotondato */
+  z-index: 9999;
+  color: white;
+  box-shadow: 0 5px 20px rgba(0,0,0,0.4);
+  backdrop-filter: blur(5px);
+  border: 2px solid rgba(255,255,255,0.2);
+}
+
+/* Stile PIOGGIA */
+.weather-banner.rain {
+  background: linear-gradient(90deg, #2980b9 0%, #3498db 100%);
+}
+
+/* Stile SOLE */
+.weather-banner.sunny {
+  background: linear-gradient(90deg, #f39c12 0%, #f1c40f 100%);
+  color: #2c3e50; /* Testo scuro per leggibilità */
+}
+
+.weather-icon { font-size: 2rem; }
+.weather-content h3 { margin: 0; font-size: 1.1rem; font-weight: 800; text-transform: uppercase; }
+.weather-content p { margin: 2px 0 0 0; font-size: 0.9rem; font-weight: 500; }
+
+.drop-in-enter-active, .drop-in-leave-active { transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
+.drop-in-enter-from, .drop-in-leave-to { transform: translate(-50%, -80px); opacity: 0; }
 </style>
