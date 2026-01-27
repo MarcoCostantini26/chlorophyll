@@ -21,28 +21,49 @@ const showBadgeModal = ref(false);
 const lastUnlockedBadge = ref({ name: '', desc: '' });
 const isWidgetAlive = ref(true);
 
-// --- SISTEMA NOTIFICHE METEO (FIXED) ---
+// --- 1. NOTIFICHE METEO ---
 const weatherAlert = ref(null); 
 
 const triggerWeatherAlert = (condition) => {
-  // FIX: Accetta sia 'rain' che 'rainy' (come lo manda il server)
   if (condition === 'rain' || condition === 'rainy') {
     weatherAlert.value = {
       title: 'STA PIOVENDO! 🌧️',
       msg: 'Ottima notizia! La natura sta innaffiando le piante per te.',
-      type: 'rain' // Usiamo 'rain' per attivare la classe CSS corretta
+      type: 'rain'
     };
   } else if (condition === 'sunny') {
     weatherAlert.value = {
       title: 'È TORNATO IL SOLE ☀️',
-      msg: 'Il terreno inizierà ad asciugarsi. Tieni d\'occhio l\'umidità!',
+      msg: 'Il terreno inizierà ad asciugarsi.',
       type: 'sunny'
     };
   }
+  if (weatherAlert.value) setTimeout(() => { weatherAlert.value = null; }, 6000);
+};
 
-  if (weatherAlert.value) {
-    setTimeout(() => { weatherAlert.value = null; }, 6000);
-  }
+// --- 2. NOTIFICHE CRITICHE (SOS MIO ALBERO) ---
+const criticalAlert = ref(null);
+
+const triggerCriticalAlert = (treeName) => {
+  criticalAlert.value = {
+    title: 'S.O.S. ALBERO! 🚨',
+    msg: `Il tuo "${treeName}" è in condizioni critiche! Intervieni subito!`,
+    type: 'critical'
+  };
+  setTimeout(() => { criticalAlert.value = null; }, 10000);
+};
+
+// --- LOGICA TEST BUTTON DINAMICO ---
+const testMySOS = () => {
+    // Cerca se l'utente ha alberi adottati
+    let treeName = "Albero Test";
+    if (currentUser.value && currentUser.value.adoptedTrees && currentUser.value.adoptedTrees.length > 0) {
+        // Cerca il nome del primo albero adottato
+        const myTreeId = currentUser.value.adoptedTrees[0];
+        const foundTree = trees.value.find(t => t._id === myTreeId);
+        if (foundTree) treeName = foundTree.name;
+    }
+    triggerCriticalAlert(treeName);
 };
 
 // --- LOGICA RUOLI ---
@@ -115,9 +136,20 @@ onMounted(() => {
   socket.on('connect', () => isConnected.value = true);
   socket.on('disconnect', () => isConnected.value = false);
   
+  // --- ASCOLTO CAMBIAMENTI ALBERI ---
   socket.on('tree_updated', (t) => { 
     const idx = trees.value.findIndex(x => x._id === t._id); 
     if (idx !== -1) { 
+      // LOGICA SOS REALE:
+      const wasCritical = trees.value[idx].status === 'critical';
+      const isCritical = t.status === 'critical';
+      // Controlla se l'ID dell'albero è nella lista adoptedTrees dell'utente
+      const isMine = currentUser.value && currentUser.value.adoptedTrees && currentUser.value.adoptedTrees.includes(t._id);
+
+      if (isCritical && !wasCritical && isMine) {
+        triggerCriticalAlert(t.name);
+      }
+
       trees.value[idx] = t; 
       trees.value = [...trees.value]; 
     } 
@@ -125,7 +157,6 @@ onMounted(() => {
   
   socket.on('trees_refresh', (all) => trees.value = all);
   
-  // FIX METEO: Ora accetta anche 'rainy'
   socket.on('weather_update', (w) => { 
     if (w !== currentWeather.value) {
       currentWeather.value = w;
@@ -191,9 +222,7 @@ onMounted(() => {
 
     <transition name="drop-in">
       <div v-if="weatherAlert" class="weather-banner" :class="weatherAlert.type">
-        <div class="weather-icon">
-          {{ weatherAlert.type === 'rain' ? '🌧️' : '☀️' }}
-        </div>
+        <div class="weather-icon">{{ weatherAlert.type === 'rain' ? '🌧️' : '☀️' }}</div>
         <div class="weather-content">
           <h3>{{ weatherAlert.title }}</h3>
           <p>{{ weatherAlert.msg }}</p>
@@ -201,14 +230,23 @@ onMounted(() => {
       </div>
     </transition>
 
+    <transition name="drop-in">
+      <div v-if="criticalAlert" class="weather-banner critical">
+        <div class="weather-icon">🚨</div>
+        <div class="weather-content">
+          <h3>{{ criticalAlert.title }}</h3>
+          <p>{{ criticalAlert.msg }}</p>
+        </div>
+      </div>
+    </transition>
+
     <div v-if="showLevelUp" class="level-up-modal">🌟 LEVEL UP! 🌟</div>
-    <div v-if="showBadgeModal" class="badge-modal"><div class="badge-icon">🏆</div><h3>BADGE SBLOCCATO!</h3><p>{{ lastUnlockedBadge.name }}</p></div>
+    <div v-if="showBadgeModal" class="badge-modal"><div class="badge-icon">🏆</div><h3>BADGE SBLOCCATO!</h3><p>{{ lastUnlockedBadge.name }}</p></div>s
 
   </div>
 </template>
 
 <style>
-/* CSS BASE INVARIATO */
 .app-root { display: flex; flex-direction: column; min-height: 100vh; }
 html, body { margin: 0; padding: 0; width: 100%; font-family: 'Inter', sans-serif; background-color: #121212; color: #ecf0f1; }
 .app-header { position: fixed; top: 0; left: 0; width: 100%; height: 70px; background: #1e1e1e; border-bottom: 2px solid #333; box-shadow: 0 4px 12px rgba(0,0,0,0.3); z-index: 1000; }
@@ -236,13 +274,12 @@ html, body { margin: 0; padding: 0; width: 100%; font-family: 'Inter', sans-seri
 .badge-modal .badge-icon { font-size: 5rem; margin-bottom: 15px; display: block; }
 @keyframes popIn { from { transform: translate(-50%, -50%) scale(0.8); opacity: 0; } to { transform: translate(-50%, -50%) scale(1); opacity: 1; }}
 
-/* --- STILI NUOVI: BANNER METEO --- */
 .weather-banner {
   position: fixed; top: 85px; left: 50%; transform: translateX(-50%);
   width: 90%; max-width: 500px;
   display: flex; align-items: center; gap: 15px;
   padding: 15px 25px;
-  border-radius: 50px; /* Arrotondato */
+  border-radius: 50px; 
   z-index: 9999;
   color: white;
   box-shadow: 0 5px 20px rgba(0,0,0,0.4);
@@ -250,20 +287,24 @@ html, body { margin: 0; padding: 0; width: 100%; font-family: 'Inter', sans-seri
   border: 2px solid rgba(255,255,255,0.2);
 }
 
-/* Stile PIOGGIA */
-.weather-banner.rain {
-  background: linear-gradient(90deg, #2980b9 0%, #3498db 100%);
-}
+.weather-banner.rain { background: linear-gradient(90deg, #2980b9 0%, #3498db 100%); }
+.weather-banner.sunny { background: linear-gradient(90deg, #f39c12 0%, #f1c40f 100%); color: #2c3e50; }
 
-/* Stile SOLE */
-.weather-banner.sunny {
-  background: linear-gradient(90deg, #f39c12 0%, #f1c40f 100%);
-  color: #2c3e50; /* Testo scuro per leggibilità */
+.weather-banner.critical {
+  background: linear-gradient(90deg, #c0392b 0%, #e74c3c 100%);
+  animation: pulse-border 1.5s infinite;
+  border-color: rgba(255, 255, 255, 0.5);
 }
 
 .weather-icon { font-size: 2rem; }
 .weather-content h3 { margin: 0; font-size: 1.1rem; font-weight: 800; text-transform: uppercase; }
 .weather-content p { margin: 2px 0 0 0; font-size: 0.9rem; font-weight: 500; }
+
+@keyframes pulse-border {
+  0% { box-shadow: 0 0 0 0 rgba(231, 76, 60, 0.7); transform: translateX(-50%) scale(1); }
+  50% { box-shadow: 0 0 20px 5px rgba(231, 76, 60, 0.4); transform: translateX(-50%) scale(1.02); }
+  100% { box-shadow: 0 0 0 0 rgba(231, 76, 60, 0); transform: translateX(-50%) scale(1); }
+}
 
 .drop-in-enter-active, .drop-in-leave-active { transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
 .drop-in-enter-from, .drop-in-leave-to { transform: translate(-50%, -80px); opacity: 0; }
