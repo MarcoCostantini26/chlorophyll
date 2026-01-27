@@ -1,18 +1,13 @@
 <script setup>
-import { ref, onMounted, computed } from 'vue';
+import { ref, onMounted } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import { Line } from 'vue-chartjs';
-import { Chart as ChartJS, CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend, Filler } from 'chart.js';
-
-ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend, Filler);
+// Importiamo il componente grafico intelligente
+import TreeHistoryChart from '../components/TreeHistoryChart.vue';
 
 const route = useRoute();
 const router = useRouter();
 const tree = ref(null);
 const isLoading = ref(true);
-
-// 1. STATO PER IL RANGE DI TEMPO (Default 24h)
-const timeRange = ref('24h'); 
 
 const fetchTreeDetail = async () => {
   try {
@@ -28,105 +23,6 @@ const fetchTreeDetail = async () => {
   }
 };
 
-// 2. DATA FORMATTING INTELLIGENTE
-const chartData = computed(() => {
-  if (!tree.value || !tree.value.history) return { labels: [], datasets: [] };
-  
-  const now = new Date();
-  let startTime = new Date();
-
-  // Calcola il punto di partenza
-  switch (timeRange.value) {
-    case '1h': startTime.setHours(now.getHours() - 1); break;
-    case '3h': startTime.setHours(now.getHours() - 3); break;
-    case '6h': startTime.setHours(now.getHours() - 6); break;
-    case '12h': startTime.setHours(now.getHours() - 12); break;
-    case '24h': startTime.setHours(now.getHours() - 24); break;
-    case '1w': startTime.setDate(now.getDate() - 7); break;
-    default: startTime.setHours(now.getHours() - 24);
-  }
-
-  // Filtra
-  const filteredHistory = tree.value.history.filter(h => new Date(h.date) >= startTime);
-
-  // Formatta le etichette in base al range
-  const labels = filteredHistory.map(h => {
-    const date = new Date(h.date);
-    // Se stiamo guardando la settimana, mostra Giorno/Mese (es. 25/01)
-    if (timeRange.value === '1w') {
-      return date.toLocaleDateString('it-IT', { day: '2-digit', month: '2-digit' }) + ' ' + date.toLocaleTimeString([], { hour: '2-digit', minute:'2-digit' });
-    }
-    // Altrimenti mostra solo l'ora (es. 14:30)
-    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-  });
-
-  return {
-    labels: labels,
-    datasets: [{
-      label: 'Livello Acqua (%)',
-      data: filteredHistory.map(h => h.val),
-      borderColor: '#3498db',
-      backgroundColor: 'rgba(52, 152, 219, 0.2)',
-      fill: true,
-      tension: 0.3,
-      
-      pointRadius: 4,
-      pointHoverRadius: 7,
-      pointBackgroundColor: '#fff',
-      pointBorderColor: '#3498db',
-      pointBorderWidth: 2
-    }]
-  };
-});
-
-// 3. OPZIONI DINAMICHE PER SISTEMARE GLI INTERVALLI
-const chartOptions = computed(() => {
-  
-  // Definiamo quante tacche (etichette) mostrare al massimo per non affollare
-  let limitTicks = 12; // Default
-
-  switch (timeRange.value) {
-    case '1h': limitTicks = 6; break;  // Una ogni ~10 min
-    case '3h': limitTicks = 6; break;  // Una ogni ~30 min
-    case '6h': limitTicks = 6; break;  // Una ogni 1 ora
-    case '12h': limitTicks = 6; break; // Una ogni 2 ore
-    case '24h': limitTicks = 8; break; // Una ogni 3 ore
-    case '1w': limitTicks = 7; break;  // Una al giorno
-  }
-
-  return {
-    responsive: true,
-    maintainAspectRatio: false,
-    scales: {
-      y: { beginAtZero: true, max: 100, grid: { color: '#f0f0f0' } },
-      x: { 
-        grid: { display: false },
-        ticks: {
-          maxTicksLimit: limitTicks, // <--- QUI LA MAGIA
-          maxRotation: 0,
-          autoSkip: true
-        }
-      }
-    },
-    plugins: { 
-      legend: { display: false },
-      tooltip: {
-        mode: 'index',
-        intersect: false,
-        backgroundColor: 'rgba(0,0,0,0.8)',
-        titleColor: '#fff',
-        bodyColor: '#fff',
-        displayColors: false
-      }
-    },
-    interaction: {
-      mode: 'nearest',
-      axis: 'x',
-      intersect: false
-    }
-  };
-});
-
 onMounted(fetchTreeDetail);
 </script>
 
@@ -136,74 +32,94 @@ onMounted(fetchTreeDetail);
       <button @click="$router.push('/admin/analytics')">↩ Torna alla Tabella</button>
     </div>
 
-    <div v-if="isLoading" class="loading">Caricamento grafico...</div>
+    <div v-if="isLoading" class="loading">
+      <div class="spinner"></div> Caricamento dati...
+    </div>
 
     <div v-else-if="tree" class="content">
+      
       <div class="tree-header">
-        <div class="icon-wrapper">{{ tree.status === 'healthy' ? '💚' : tree.status === 'thirsty' ? '💛' : '❤️' }}</div>
-        <div>
+        <div class="icon-wrapper">
+          {{ tree.status === 'healthy' ? '💚' : tree.status === 'thirsty' ? '💛' : '❤️' }}
+        </div>
+        <div class="header-text">
           <h1>{{ tree.name }}</h1>
           <p class="subtitle">{{ tree.category }} • {{ tree.species }}</p>
+          <div class="location-badge" v-if="tree.location">
+            📍 {{ tree.location.lat.toFixed(4) }}, {{ tree.location.lng.toFixed(4) }}
+          </div>
         </div>
-        <div class="stat-badge">
-          <span>Attuale</span>
+        <div class="stat-badge" :class="tree.status">
+          <span>Stato Attuale</span>
           <strong>{{ Math.round(tree.waterLevel) }}%</strong>
         </div>
       </div>
 
-      <div class="chart-card">
-        <div class="chart-header-row">
-          <h3>📉 Andamento Storico (Acqua)</h3>
-          
-          <div class="range-selector">
-            <button :class="{ active: timeRange === '1h' }" @click="timeRange = '1h'">1h</button>
-            <button :class="{ active: timeRange === '3h' }" @click="timeRange = '3h'">3h</button>
-            <button :class="{ active: timeRange === '6h' }" @click="timeRange = '6h'">6h</button>
-            <button :class="{ active: timeRange === '12h' }" @click="timeRange = '12h'">12h</button>
-            <button :class="{ active: timeRange === '24h' }" @click="timeRange = '24h'">24h</button>
-            <button :class="{ active: timeRange === '1w' }" @click="timeRange = '1w'">1w</button>
-          </div>
-        </div>
-
-        <div class="chart-wrapper">
-          <Line :data="chartData" :options="chartOptions" />
-          <div v-if="chartData.labels.length === 0" class="no-data-msg">
-            Nessun dato registrato in questo periodo.
+      <div class="chart-section">
+        <TreeHistoryChart :tree="tree" />
+      </div>
+      
+      <div class="info-section">
+        <div class="info-card">
+          <h4>Ultima Cura</h4>
+          <div class="last-care-content">
+            <div v-if="tree.lastWatered">
+              <p class="care-date">{{ new Date(tree.lastWatered).toLocaleDateString() }}</p>
+              <p class="care-time">alle {{ new Date(tree.lastWatered).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) }}</p>
+            </div>
+            <p v-else class="no-care">Mai innaffiato recentemente.</p>
           </div>
         </div>
       </div>
-      
+
     </div>
   </div>
 </template>
 
 <style scoped>
-.detail-page { padding: 40px; max-width: 900px; margin: 0 auto; font-family: 'Inter', sans-serif; color: #2c3e50; }
+.detail-page { padding: 40px; max-width: 1000px; margin: 0 auto; font-family: 'Inter', sans-serif; color: #2c3e50; }
+
 .nav-header { margin-bottom: 20px; }
-.nav-header button { background: #ecf0f1; border: none; padding: 10px 20px; border-radius: 8px; cursor: pointer; font-weight: bold; color: #7f8c8d; }
-.nav-header button:hover { background: #bdc3c7; color: white; }
+.nav-header button { background: #ecf0f1; border: none; padding: 10px 20px; border-radius: 8px; cursor: pointer; font-weight: bold; color: #7f8c8d; transition: all 0.2s; }
+.nav-header button:hover { background: #bdc3c7; color: white; transform: translateX(-5px); }
 
-.tree-header { display: flex; align-items: center; gap: 20px; background: white; padding: 30px; border-radius: 16px; box-shadow: 0 4px 20px rgba(0,0,0,0.05); border: 1px solid #eee; margin-bottom: 30px; }
-.icon-wrapper { font-size: 3rem; background: #f9f9f9; width: 80px; height: 80px; display: flex; align-items: center; justify-content: center; border-radius: 50%; }
-.tree-header h1 { margin: 0; font-size: 1.8rem; }
-.subtitle { margin: 5px 0 0 0; color: #95a5a6; text-transform: uppercase; font-size: 0.8rem; font-weight: bold; }
-.stat-badge { margin-left: auto; text-align: center; background: #ebf5fb; padding: 15px 25px; border-radius: 12px; color: #3498db; }
-.stat-badge span { display: block; font-size: 0.7rem; text-transform: uppercase; margin-bottom: 5px; }
-.stat-badge strong { font-size: 2rem; }
+.loading { text-align: center; color: #95a5a6; padding: 50px; font-size: 1.2rem; }
+.spinner { width: 40px; height: 40px; border: 4px solid #f3f3f3; border-top: 4px solid #3498db; border-radius: 50%; animation: spin 1s linear infinite; margin: 0 auto 15px; }
+@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
 
-.chart-card { background: white; padding: 25px; border-radius: 16px; box-shadow: 0 4px 20px rgba(0,0,0,0.05); border: 1px solid #eee; margin-bottom: 30px; }
-.chart-header-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 10px; }
-.chart-header-row h3 { margin: 0; }
+/* HEADER */
+.tree-header { display: flex; align-items: center; gap: 25px; background: white; padding: 30px; border-radius: 16px; box-shadow: 0 4px 20px rgba(0,0,0,0.03); border: 1px solid #eee; margin-bottom: 30px; }
+.icon-wrapper { font-size: 3.5rem; background: #f9f9f9; width: 90px; height: 90px; display: flex; align-items: center; justify-content: center; border-radius: 50%; box-shadow: inset 0 0 10px rgba(0,0,0,0.05); }
+.header-text { flex: 1; }
+.tree-header h1 { margin: 0; font-size: 2rem; color: #2c3e50; }
+.subtitle { margin: 5px 0 10px 0; color: #95a5a6; text-transform: uppercase; font-size: 0.85rem; font-weight: bold; letter-spacing: 1px; }
+.location-badge { display: inline-block; background: #f0f2f5; padding: 4px 10px; border-radius: 6px; font-size: 0.8rem; color: #7f8c8d; }
 
-.range-selector { display: flex; gap: 5px; background: #f1f2f6; padding: 4px; border-radius: 8px; }
-.range-selector button { border: none; background: transparent; padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 0.85rem; font-weight: 600; color: #7f8c8d; transition: all 0.2s; }
-.range-selector button:hover { color: #2c3e50; background: rgba(0,0,0,0.05); }
-.range-selector button.active { background: white; color: #3498db; box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
+.stat-badge { text-align: center; background: #ebf5fb; padding: 15px 30px; border-radius: 12px; color: #3498db; min-width: 100px; }
+.stat-badge span { display: block; font-size: 0.7rem; text-transform: uppercase; margin-bottom: 5px; opacity: 0.8; }
+.stat-badge strong { font-size: 2.2rem; line-height: 1; }
+.stat-badge.healthy { background: #eafaf1; color: #2ecc71; }
+.stat-badge.thirsty { background: #fef9e7; color: #f1c40f; }
+.stat-badge.critical { background: #fdedec; color: #e74c3c; }
 
-.chart-wrapper { height: 350px; position: relative; }
-.no-data-msg { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); color: #95a5a6; font-style: italic; }
+/* GRAFICO */
+.chart-section { margin-bottom: 30px; }
 
-.info-card { background: #f8f9fa; padding: 25px; border-radius: 16px; border: 1px dashed #ccc; }
-.info-card ul { list-style: none; padding: 0; }
-.info-card li { margin-bottom: 10px; font-size: 0.95rem; }
+/* INFO EXTRA (Singola Card Full Width) */
+.info-section { margin-top: 20px; }
+.info-card { background: white; padding: 25px; border-radius: 16px; border: 1px solid #eee; box-shadow: 0 2px 10px rgba(0,0,0,0.02); display: flex; align-items: center; justify-content: space-between; }
+.info-card h4 { margin: 0; color: #8e44ad; font-size: 1.1rem; }
+
+.last-care-content { display: flex; align-items: center; gap: 15px; text-align: right; }
+.care-icon { font-size: 2rem; background: #ebf5fb; width: 50px; height: 50px; display: flex; align-items: center; justify-content: center; border-radius: 50%; }
+.care-date { font-weight: 800; font-size: 1.1rem; color: #2c3e50; margin: 0; }
+.care-time { color: #95a5a6; font-size: 0.9rem; margin: 0; }
+.no-care { color: #95a5a6; font-style: italic; margin: 0; }
+
+@media (max-width: 768px) {
+  .tree-header { flex-direction: column; text-align: center; }
+  .stat-badge { width: 100%; }
+  .info-card { flex-direction: column; gap: 15px; text-align: center; }
+  .last-care-content { flex-direction: column; text-align: center; }
+}
 </style>

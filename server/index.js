@@ -26,42 +26,34 @@ const PORT = process.env.PORT || 3000;
 const MONGO_URI = process.env.MONGO_URI;
 const CLIENT_URL = process.env.CLIENT_URL || "http://localhost:5173";
 
-// Middleware Base
 app.use(cors({ origin: CLIENT_URL, credentials: true }));
 app.use(express.json());
 
-// Connessione DB
+// --- CONNESSIONE DB ---
 mongoose.connect(MONGO_URI)
-  .then(() => console.log('🍃 MongoDB Connesso'))
+  .then(async () => {
+    console.log('🍃 MongoDB Connesso');
+    // Il recupero offline ora è gestito dentro weatherService all'avvio
+  })
   .catch(err => console.error('❌ Errore MongoDB:', err));
 
-// Configurazione Socket.io
 const io = new Server(server, { 
   cors: { origin: CLIENT_URL, methods: ["GET", "POST", "PUT", "DELETE"] } 
 });
 
-// Middleware Socket injection
 app.use((req, res, next) => {
   req.io = io;
   next();
 });
 
-// --- UTILIZZO ROTTE ---
 app.use('/api/trees', treesRoutes);
 app.use('/api/users', usersRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/ai', aiRoutes);
 
-// --- LOGICA DI GIOCO (GAME BALANCE) ---
 const ACTION_VALUES = {
-  tree: 20,             // Innaffia
-  flowerbed: 20,        // Innaffia
-  vertical_garden: 20,  // Innaffia
-  hedge: 30,            // Pota
-  bush: 30,             // Pota
-  potted: 40,           // Concima
-  succulent: 15,        // Pulisci
-  default: 20           // Fallback
+  tree: 20, flowerbed: 20, vertical_garden: 20,
+  hedge: 30, bush: 30, potted: 40, succulent: 15, default: 20
 };
 
 const calculateStatus = (level) => {
@@ -70,99 +62,113 @@ const calculateStatus = (level) => {
   return 'critical';
 };
 
+// Avvia il meteo (che farà anche il backfilling iniziale)
 startWeatherSimulation(io);
 
 io.on('connection', (socket) => {
   console.log(`🔌 Utente connesso: ${socket.id}`);
   socket.emit('weather_update', getCurrentWeather());
 
-  // --- AZIONE INNAFFIA (CON LOGICA BADGE) ---
+  // --- AZIONE INNAFFIA ---
   socket.on('water_tree', async ({ treeId, userId }) => {
     try {
       const tree = await Tree.findById(treeId);
       if (!tree) return;
       
-      // 1. Definisci wasCritical PRIMA di modificare l'acqua (FIX IMPORTANTE)
+      const now = new Date();
       const wasCritical = tree.waterLevel <= 20;
-
-      // 2. Determina il guadagno di salute
       const healthGain = ACTION_VALUES[tree.category] || ACTION_VALUES.default;
       
-      // 3. Applica l'incremento
-      tree.waterLevel = Math.min(tree.waterLevel + healthGain, 100);
-      tree.status = calculateStatus(tree.waterLevel);
+      let newLevel = tree.waterLevel + healthGain;
+      if (newLevel > 100) newLevel = 100;
+
+      // === FIX: UN PUNTO PER MINUTO ===
+      const lastEntry = tree.history.length > 0 ? tree.history[tree.history.length - 1] : null;
+      let isSameMinute = false;
+
+      if (lastEntry) {
+        const lastDate = new Date(lastEntry.date);
+        // Controlla se Anno, Mese, Giorno, Ora e Minuto sono uguali
+        if (lastDate.getFullYear() === now.getFullYear() &&
+            lastDate.getMonth() === now.getMonth() &&
+            lastDate.getDate() === now.getDate() &&
+            lastDate.getHours() === now.getHours() &&
+            lastDate.getMinutes() === now.getMinutes()) {
+              isSameMinute = true;
+        }
+      }
+
+      if (isSameMinute) {
+        // Sovrascrivi l'ultimo punto
+        lastEntry.val = newLevel;
+        lastEntry.date = now;
+      } else {
+        // Crea nuovo punto
+        tree.history.push({ val: newLevel, date: now });
+      }
+      // ================================
+
+      tree.waterLevel = newLevel;
+      tree.lastWatered = now;
+      tree.status = calculateStatus(newLevel);
+
+      // Limita storico
+      if (tree.history.length > 50) tree.history.shift();
+
       await tree.save();
       
       io.emit('tree_updated', tree);
+      const allTrees = await Tree.find();
+      io.emit('trees_refresh', allTrees);
 
-      // 4. Log e XP Utente
+      // Gestione XP e Badge (Invariata)
       if (userId && userId !== 'guest') {
-        
-        // Logica nome azione
         let actionName = 'water';
         if (['hedge', 'bush'].includes(tree.category)) actionName = 'prune';
         else if (['potted', 'succulent'].includes(tree.category)) actionName = 'treat';
 
         await ActionLog.create({ 
-            user: userId, 
-            tree: treeId, 
-            actionType: actionName, 
-            details: `Salute +${healthGain}% (Livello: ${tree.waterLevel}%)` 
+            user: userId, tree: treeId, actionType: actionName, 
+            details: `Salute +${healthGain}%` 
         });
         
         const user = await User.findById(userId);
         if (user) {
-          // --- PULIZIA DUPLICATI (FIX "10 BADGE") ---
-          // Rimuove i duplicati dall'array dei badge
           user.badges = [...new Set(user.badges)];
-          
-          // Assegnazione XP
           user.xp += 15;
-          const newLevel = Math.floor(user.xp / 100) + 1;
+          const userNewLevel = Math.floor(user.xp / 100) + 1;
           
-          // LEVEL UP
-          if (newLevel > user.level) {
-            user.level = newLevel;
+          if (userNewLevel > user.level) {
+            user.level = userNewLevel;
             io.emit('level_up', { username: user.username, level: user.level });
-            
-            // Badge Livello 5
-            if (newLevel >= 5 && !user.badges.includes('GREEN_THUMB')) {
+            if (userNewLevel >= 5 && !user.badges.includes('GREEN_THUMB')) {
               user.badges.push('GREEN_THUMB');
               io.emit('badge_unlocked', { username: user.username, badge: { name: 'Pollice Verde', desc: 'Raggiunto il livello 5!' } });
             }
           }
-
-          // Badge Prima Goccia
           if (!user.badges.includes('FIRST_DROP')) {
              user.badges.push('FIRST_DROP');
              io.emit('badge_unlocked', { username: user.username, badge: { name: 'Prima Goccia', desc: 'Hai curato la tua prima pianta.' } });
           }
-
-          // Badge Soccorritore (Se era critico)
           if (wasCritical && !user.badges.includes('SAVER')) {
             user.badges.push('SAVER');
             io.emit('badge_unlocked', { username: user.username, badge: { name: 'Soccorritore', desc: 'Hai salvato una pianta critica!' } });
           }
-
-          // Badge Gufo Notturno (22:00 - 05:00)
-          const hour = new Date().getHours();
+          const hour = now.getHours();
           if ((hour >= 22 || hour < 5) && !user.badges.includes('NIGHT_OWL')) {
             user.badges.push('NIGHT_OWL');
             io.emit('badge_unlocked', { username: user.username, badge: { name: 'Gufo Notturno', desc: 'Cura notturna effettuata.' } });
           }
-
-          // Badge Veterano (20 Azioni totali)
           const actionCount = await ActionLog.countDocuments({ user: userId, actionType: 'water' });
           if (actionCount >= 20 && !user.badges.includes('VETERAN')) {
             user.badges.push('VETERAN');
             io.emit('badge_unlocked', { username: user.username, badge: { name: 'Veterano', desc: '20 Innaffiature completate!' } });
           }
-
           await user.save();
           io.emit('user_updated', user);
         }
       }
-    } catch (e) { console.error(e); }
+    } catch (e) { console.error("Errore water_tree:", e); }
   });
 
   // --- AZIONE ADMIN ---
@@ -170,11 +176,42 @@ io.on('connection', (socket) => {
     try {
       const tree = await Tree.findById(treeId);
       if (!tree) return;
+
+      const now = new Date();
       let newLevel = Math.min(Math.max(tree.waterLevel + amount, 0), 100);
+      
+      // === FIX: UN PUNTO PER MINUTO ===
+      const lastEntry = tree.history.length > 0 ? tree.history[tree.history.length - 1] : null;
+      let isSameMinute = false;
+
+      if (lastEntry) {
+        const lastDate = new Date(lastEntry.date);
+        if (lastDate.getMinutes() === now.getMinutes() && lastDate.getHours() === now.getHours() && lastDate.getDate() === now.getDate()) {
+           isSameMinute = true;
+        }
+      }
+
+      if (isSameMinute) {
+        lastEntry.val = newLevel;
+        lastEntry.date = now;
+      } else {
+        tree.history.push({ val: newLevel, date: now });
+      }
+      // ================================
+
       tree.waterLevel = newLevel;
+      tree.lastWatered = now;
       tree.status = calculateStatus(tree.waterLevel);
+      
+      // Limita storico
+      if (tree.history.length > 50) tree.history.shift();
+
       await tree.save();
+      
       io.emit('tree_updated', tree);
+      const allTrees = await Tree.find();
+      io.emit('trees_refresh', allTrees);
+      
     } catch (e) { console.error(e); }
   });
 });
