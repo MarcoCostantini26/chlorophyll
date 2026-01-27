@@ -45,9 +45,6 @@ onMounted(fetchTreeDetail);
         <div class="header-text">
           <h1>{{ tree.name }}</h1>
           <p class="subtitle">{{ tree.category }} • {{ tree.species }}</p>
-          <div class="location-badge" v-if="tree.location">
-            📍 {{ tree.location.lat.toFixed(4) }}, {{ tree.location.lng.toFixed(4) }}
-          </div>
         </div>
         <div class="stat-badge" :class="tree.status">
           <span>Stato Attuale</span>
@@ -62,13 +59,11 @@ onMounted(fetchTreeDetail);
       <div class="info-section">
         <div class="info-card">
           <h4>Ultima Cura</h4>
-          <div class="last-care-content">
-            <div v-if="tree.lastWatered">
-              <p class="care-date">{{ new Date(tree.lastWatered).toLocaleDateString() }}</p>
-              <p class="care-time">alle {{ new Date(tree.lastWatered).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) }}</p>
-            </div>
-            <p v-else class="no-care">Mai innaffiato recentemente.</p>
-          </div>
+          <p v-if="tree.lastWatered">
+            {{ new Date(tree.lastWatered).toLocaleDateString() }} 
+            alle {{ new Date(tree.lastWatered).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) }}
+          </p>
+          <p v-else>Mai innaffiato recentemente.</p>
         </div>
       </div>
 
@@ -105,7 +100,7 @@ onMounted(fetchTreeDetail);
 /* GRAFICO */
 .chart-section { margin-bottom: 30px; }
 
-/* INFO EXTRA (Singola Card Full Width) */
+/* INFO EXTRA - STILE SEMPLICE */
 .info-section { margin-top: 20px; }
 .info-card { background: white; padding: 25px; border-radius: 16px; border: 1px solid #eee; box-shadow: 0 2px 10px rgba(0,0,0,0.02); display: flex; align-items: center; justify-content: space-between; }
 .info-card h4 { margin: 0; color: #8e44ad; font-size: 1.1rem; }

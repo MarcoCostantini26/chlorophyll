@@ -6,32 +6,40 @@ import Leaderboard from '../components/Leaderboard.vue';
 import BadgeList from '../components/BadgeList.vue';
 import AdminPanel from '../components/AdminPanel.vue';
 
-const props = defineProps(['user', 'trees', 'weather', 'isConnected']);
+// Riceviamo weatherMap (mappa completa) e weather (fallback globale)
+const props = defineProps(['user', 'trees', 'weather', 'weatherMap', 'isConnected']);
 const emit = defineEmits(['water', 'force-water', 'ask-ai', 'adopt']);
 
 const sidebarTab = ref('leaderboard');
 const treeMapRef = ref(null);
 
-// --- LOGICA METEO CITTÀ ---
+// LOGICA METEO CITTÀ
 const currentCity = ref({ name: 'Bologna', coords: [44.4949, 11.3426] });
 
 const handleCityChange = (newCity) => {
   currentCity.value = newCity;
 };
 
-// --- NUOVA FUNZIONE: LOGICA SOLE/LUNA ---
+// Calcolo Meteo Locale usando la Mappa
+const localWeather = computed(() => {
+  if (!props.weatherMap || !currentCity.value.name) return props.weather || 'sunny';
+  // Se la città è nella mappa, usa quel meteo. Altrimenti usa il globale.
+  return props.weatherMap[currentCity.value.name] || props.weather || 'sunny';
+});
+
 const getWeatherIcon = (w) => {
   const hour = new Date().getHours();
-  // Consideriamo notte dalle 18:00 alle 06:00
   const isNight = hour >= 18 || hour <= 6;
-
   if (w === 'rain' || w === 'rainy') return '🌧️';
   if (w === 'cloudy') return '☁️';
-  
-  // Se è sereno (sunny): mostra la Luna di notte, il Sole di giorno
   return isNight ? '🌙' : '☀️';
 };
-// ----------------------------------------
+
+const getWeatherLabel = (w) => {
+  if (w === 'rain' || w === 'rainy') return 'Pioggia';
+  if (w === 'cloudy') return 'Nuvoloso';
+  return 'Sereno';
+};
 
 const isAdmin = computed(() => props.user?.role === 'city_manager');
 const canInteract = computed(() => props.user && (props.user.role === 'green_guardian' || props.user.role === 'city_manager'));
@@ -69,7 +77,7 @@ const handleFocusMap = (tree) => { if (treeMapRef.value) treeMapRef.value.flyToT
 
           <div 
             class="dashboard-card weather-card clickable" 
-            :class="weather" 
+            :class="localWeather" 
             @click="$router.push({ 
               path: '/weather', 
               query: { 
@@ -81,12 +89,11 @@ const handleFocusMap = (tree) => { if (treeMapRef.value) treeMapRef.value.flyToT
             :title="'Guarda previsioni a ' + currentCity.name"
           >
             <div class="weather-icon">
-              <span>{{ getWeatherIcon(weather) }}</span>
+              <span>{{ getWeatherIcon(localWeather) }}</span>
             </div>
             <div class="weather-info">
-              <h3>{{ weather === 'sunny' ? 'Sereno' : weather === 'cloudy' ? 'Nuvoloso' : 'Pioggia' }}</h3>
-              <small v-if="weather === 'rainy'">{{ currentCity.name }}: Pioggia</small>
-              <small v-else>{{ currentCity.name }}: Stabile</small>
+              <h3>{{ getWeatherLabel(localWeather) }}</h3>
+              <small>Meteo su {{ currentCity.name }}</small>
             </div>
           </div>
         </div>
@@ -115,7 +122,10 @@ const handleFocusMap = (tree) => { if (treeMapRef.value) treeMapRef.value.flyToT
         <div class="separator">👇 STATO FORESTA 👇</div>
         <div class="grid">
           <div v-for="tree in trees" :key="tree._id" class="card" :class="tree.status">
-            <div class="card-header"><h3>{{ tree.name }}</h3></div>
+            <div class="card-header">
+              <h3>{{ tree.name }}</h3>
+              <button class="btn-chart-mini" @click="$router.push(`/admin/tree/${tree._id}`)" title="Vedi Dettaglio">📉</button>
+            </div>
             <div class="progress-container">
               <div class="progress-bar"><div class="fill" :style="{ width: tree.waterLevel + '%' }"></div></div>
               <small>{{ Math.round(tree.waterLevel) }}%</small>
@@ -158,7 +168,7 @@ const handleFocusMap = (tree) => { if (treeMapRef.value) treeMapRef.value.flyToT
 </template>
 
 <style scoped>
-/* STILE ORIGINALE CONFERMATO AL 100% */
+/* STILI INVARIATI */
 .main-layout { display: grid; grid-template-columns: 1fr 350px; gap: 30px; align-items: stretch; position: relative; }
 .content-column { display: flex; flex-direction: column; gap: 30px; width: 100%; }
 .sidebar-column { width: 100%; height: 100%; }
@@ -177,8 +187,6 @@ const handleFocusMap = (tree) => { if (treeMapRef.value) treeMapRef.value.flyToT
 .xp-header { display: flex; justify-content: space-between; font-size: 0.8rem; color: #7f8c8d; margin-bottom: 4px; }
 .xp-bar { width: 100%; height: 6px; background: #eee; border-radius: 3px; overflow: hidden; }
 .xp-fill { height: 100%; background: #f1c40f; transition: width 0.5s ease-out; }
-
-/* STILE CARD METEO */
 .weather-card { display: flex; align-items: center; gap: 15px; color: white; border: none; justify-content: center; min-height: 70px; }
 .weather-card.clickable { cursor: pointer; transition: transform 0.2s; }
 .weather-card.clickable:hover { transform: scale(1.02); }
@@ -186,7 +194,6 @@ const handleFocusMap = (tree) => { if (treeMapRef.value) treeMapRef.value.flyToT
 .weather-card.cloudy { background: linear-gradient(135deg, #bdc3c7, #2c3e50); }
 .weather-card.rainy { background: linear-gradient(135deg, #373b44, #4286f4); }
 .weather-icon { font-size: 2.2rem; }
-
 .badges-container { height: 100%; }
 .full-height-badge { height: 100%; display: flex; flex-direction: column; }
 .sidebar-tabs { display: flex; gap: 5px; margin-bottom: 15px; }
@@ -197,6 +204,10 @@ const handleFocusMap = (tree) => { if (treeMapRef.value) treeMapRef.value.flyToT
 .card { background: white; padding: 20px; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); border-top: 4px solid #ccc; transition: transform 0.2s; position: relative; }
 .card:hover { transform: translateY(-3px); }
 .card.healthy { border-top-color: #2ecc71; } .card.thirsty { border-top-color: #f39c12; } .card.critical { border-top-color: #e74c3c; }
+.card-header { display: flex; justify-content: space-between; align-items: center; }
+.card-header h3 { margin: 0; font-size: 1.1rem; }
+.btn-chart-mini { background: #f0f2f5; border: none; cursor: pointer; padding: 4px 8px; border-radius: 6px; font-size: 1.1rem; transition: background 0.2s; }
+.btn-chart-mini:hover { background: #dcdde1; }
 .progress-bar { width: 100%; height: 8px; background: #ecf0f1; border-radius: 4px; overflow: hidden; margin: 10px 0; }
 .fill { height: 100%; background: #3498db; transition: width 0.4s; }
 .actions { display: flex; gap: 8px; margin-top: 15px; }
@@ -206,10 +217,5 @@ const handleFocusMap = (tree) => { if (treeMapRef.value) treeMapRef.value.flyToT
 .debug-controls { margin-top: 10px; border-top: 1px dashed #eee; padding-top: 5px; text-align: center; opacity: 0.7; }
 .debug-buttons { display: flex; justify-content: center; gap: 5px; } 
 .btn-debug { padding: 2px 8px; font-size: 0.7rem; border:none; background:#ccc; cursor:pointer;}
-
-@media (max-width: 900px) {
-  .main-layout { grid-template-columns: 1fr; } 
-  .sidebar-column { display: none; }
-  .top-row-grid { grid-template-columns: 1fr; }
-}
+@media (max-width: 900px) { .main-layout { grid-template-columns: 1fr; } .sidebar-column { display: none; } .top-row-grid { grid-template-columns: 1fr; } }
 </style>

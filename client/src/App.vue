@@ -7,7 +7,7 @@ import UserChatWidget from './components/UserChatWidget.vue';
 import AdminChatWidget from './components/AdminChatWidget.vue';
 import Footer from './components/Footer.vue';
 
-const socket = io('http://localhost:3000');
+const socket = ref(null);
 const router = useRouter();
 const route = useRoute();
 
@@ -16,6 +16,7 @@ const currentUser = ref(JSON.parse(localStorage.getItem('user')) || null);
 
 const isConnected = ref(false);
 const currentWeather = ref('sunny');
+const weatherMap = ref({}); 
 const showLevelUp = ref(false);
 const showBadgeModal = ref(false);
 const lastUnlockedBadge = ref({ name: '', desc: '' });
@@ -28,7 +29,7 @@ const triggerWeatherAlert = (condition) => {
   if (condition === 'rain' || condition === 'rainy') {
     weatherAlert.value = {
       title: 'STA PIOVENDO! 🌧️',
-      msg: 'Ottima notizia! La natura sta innaffiando le piante per te.',
+      msg: 'La natura sta innaffiando le piante per te.',
       type: 'rain'
     };
   } else if (condition === 'sunny') {
@@ -41,32 +42,18 @@ const triggerWeatherAlert = (condition) => {
   if (weatherAlert.value) setTimeout(() => { weatherAlert.value = null; }, 6000);
 };
 
-// --- 2. NOTIFICHE CRITICHE (SOS MIO ALBERO) ---
+// --- 2. NOTIFICHE CRITICHE ---
 const criticalAlert = ref(null);
-
 const triggerCriticalAlert = (treeName) => {
   criticalAlert.value = {
     title: 'S.O.S. ALBERO! 🚨',
-    msg: `Il tuo "${treeName}" è in condizioni critiche! Intervieni subito!`,
+    msg: `Il tuo "${treeName}" è in condizioni critiche!`,
     type: 'critical'
   };
   setTimeout(() => { criticalAlert.value = null; }, 10000);
 };
 
-// --- LOGICA TEST BUTTON DINAMICO ---
-const testMySOS = () => {
-    // Cerca se l'utente ha alberi adottati
-    let treeName = "Albero Test";
-    if (currentUser.value && currentUser.value.adoptedTrees && currentUser.value.adoptedTrees.length > 0) {
-        // Cerca il nome del primo albero adottato
-        const myTreeId = currentUser.value.adoptedTrees[0];
-        const foundTree = trees.value.find(t => t._id === myTreeId);
-        if (foundTree) treeName = foundTree.name;
-    }
-    triggerCriticalAlert(treeName);
-};
-
-// --- LOGICA RUOLI ---
+// --- LOGICA UTENTE ---
 const isUser = computed(() => currentUser.value && currentUser.value.role === 'green_guardian');
 const isAdmin = computed(() => currentUser.value && currentUser.value.role === 'city_manager');
 const isGuest = computed(() => currentUser.value && currentUser.value.role === 'guest');
@@ -111,12 +98,10 @@ const fetchTrees = async () => {
 
 const waterTree = (treeId) => { 
   if (currentUser.value && !isGuest.value) { 
-    socket.emit('water_tree', { treeId, userId: currentUser.value._id }); 
+    socket.value.emit('water_tree', { treeId, userId: currentUser.value._id }); 
   }
 };
-
-const forceWater = ({id, amt}) => { socket.emit('admin_force_water', { treeId: id, amount: amt }); };
-
+const forceWater = ({id, amt}) => { socket.value.emit('admin_force_water', { treeId: id, amount: amt }); };
 const toggleAdopt = async (treeId) => {
   if (!currentUser.value || isGuest.value) return;
   try {
@@ -133,63 +118,56 @@ onMounted(() => {
   if (saved) { try { currentUser.value = JSON.parse(saved); } catch (e) { localStorage.removeItem('user'); } }
 
   fetchTrees();
-  socket.on('connect', () => isConnected.value = true);
-  socket.on('disconnect', () => isConnected.value = false);
+  socket.value = io('http://localhost:3000'); 
+
+  socket.value.on('connect', () => isConnected.value = true);
+  socket.value.on('disconnect', () => isConnected.value = false);
   
-  // --- ASCOLTO CAMBIAMENTI ALBERI ---
-  socket.on('tree_updated', (t) => { 
+  socket.value.on('tree_updated', (t) => { 
     const idx = trees.value.findIndex(x => x._id === t._id); 
     if (idx !== -1) { 
-      // LOGICA SOS REALE:
       const wasCritical = trees.value[idx].status === 'critical';
       const isCritical = t.status === 'critical';
-      // Controlla se l'ID dell'albero è nella lista adoptedTrees dell'utente
       const isMine = currentUser.value && currentUser.value.adoptedTrees && currentUser.value.adoptedTrees.includes(t._id);
-
-      if (isCritical && !wasCritical && isMine) {
-        triggerCriticalAlert(t.name);
-      }
-
+      if (isCritical && !wasCritical && isMine) triggerCriticalAlert(t.name);
       trees.value[idx] = t; 
       trees.value = [...trees.value]; 
     } 
   });
   
-  socket.on('trees_refresh', (all) => trees.value = all);
+  socket.value.on('trees_refresh', (all) => trees.value = all);
   
-  socket.on('weather_update', (w) => { 
+  socket.value.on('weather_update', (w) => { 
     if (w !== currentWeather.value) {
       currentWeather.value = w;
-      if (w === 'rain' || w === 'rainy' || w === 'sunny') {
-        triggerWeatherAlert(w);
-      }
+      if (['rain', 'rainy', 'sunny'].includes(w)) triggerWeatherAlert(w);
     }
   });
+
+  socket.value.on('weather_map_update', (map) => { weatherMap.value = map; });
   
-  socket.on('user_updated', (u) => { if (currentUser.value && currentUser.value._id === u._id) handleProfileUpdate(u); });
-  socket.on('level_up', () => { showLevelUp.value = true; setTimeout(() => showLevelUp.value = false, 3000); });
-  socket.on('badge_unlocked', (d) => { if (currentUser.value?.username === d.username) { lastUnlockedBadge.value = d.badge; showBadgeModal.value = true; setTimeout(() => showBadgeModal.value = false, 4000); } });
+  socket.value.on('user_updated', (u) => { if (currentUser.value && currentUser.value._id === u._id) handleProfileUpdate(u); });
+  socket.value.on('level_up', () => { showLevelUp.value = true; setTimeout(() => showLevelUp.value = false, 3000); });
+  socket.value.on('badge_unlocked', (d) => { if (currentUser.value?.username === d.username) { lastUnlockedBadge.value = d.badge; showBadgeModal.value = true; setTimeout(() => showBadgeModal.value = false, 4000); } });
 });
 </script>
 
 <template>
   <div class="app-root">
-    
     <header class="app-header" v-if="currentUser && !route.meta.hideChat">
       <div class="header-container">
         <div class="header-left">
-          <router-link to="/" class="brand-link">
-            <h1 class="main-title">🍃 Chlorophyll</h1>
-          </router-link>
-          
+          <router-link to="/" class="brand-link"><h1 class="main-title">🍃 Chlorophyll</h1></router-link>
           <span v-if="isGuest" class="guest-badge">👁️ SPETTATORE</span>
           <div :class="['status-pill', isConnected ? 'online' : 'offline']">{{ isConnected ? 'Online' : 'Offline' }}</div>
         </div>
-        
         <nav class="main-nav">
-          <router-link to="/" class="nav-item">🌲 Dashboard</router-link>
+          <router-link to="/" class="nav-item dashboard-link">🌲 Dashboard</router-link>
+          
           <router-link v-if="isAdmin" to="/admin/analytics" class="nav-item admin-link">🎛️ Control Room</router-link>
-          <router-link v-if="!isGuest" to="/profile" class="nav-item">👤 Profilo</router-link>
+          
+          <router-link v-if="!isGuest" to="/profile" class="nav-item profile-link">👤 Profilo</router-link>
+          
           <button @click="handleLogout" class="nav-item btn-logout">Esci 🚪</button>
         </nav>
       </div>
@@ -201,6 +179,7 @@ onMounted(() => {
           :user="currentUser" 
           :trees="trees"
           :weather="currentWeather"
+          :weatherMap="weatherMap" 
           :isConnected="isConnected"
           @login-success="handleLoginSuccess"
           @guest-access="handleGuestAccess" 
@@ -223,26 +202,19 @@ onMounted(() => {
     <transition name="drop-in">
       <div v-if="weatherAlert" class="weather-banner" :class="weatherAlert.type">
         <div class="weather-icon">{{ weatherAlert.type === 'rain' ? '🌧️' : '☀️' }}</div>
-        <div class="weather-content">
-          <h3>{{ weatherAlert.title }}</h3>
-          <p>{{ weatherAlert.msg }}</p>
-        </div>
+        <div class="weather-content"><h3>{{ weatherAlert.title }}</h3><p>{{ weatherAlert.msg }}</p></div>
       </div>
     </transition>
 
     <transition name="drop-in">
       <div v-if="criticalAlert" class="weather-banner critical">
         <div class="weather-icon">🚨</div>
-        <div class="weather-content">
-          <h3>{{ criticalAlert.title }}</h3>
-          <p>{{ criticalAlert.msg }}</p>
-        </div>
+        <div class="weather-content"><h3>{{ criticalAlert.title }}</h3><p>{{ criticalAlert.msg }}</p></div>
       </div>
     </transition>
 
     <div v-if="showLevelUp" class="level-up-modal">🌟 LEVEL UP! 🌟</div>
-    <div v-if="showBadgeModal" class="badge-modal"><div class="badge-icon">🏆</div><h3>BADGE SBLOCCATO!</h3><p>{{ lastUnlockedBadge.name }}</p></div>s
-
+    <div v-if="showBadgeModal" class="badge-modal"><div class="badge-icon">🏆</div><h3>BADGE SBLOCCATO!</h3><p>{{ lastUnlockedBadge.name }}</p></div>
   </div>
 </template>
 
@@ -254,58 +226,66 @@ html, body { margin: 0; padding: 0; width: 100%; font-family: 'Inter', sans-seri
 .main-content { padding-top: 90px; padding-bottom: 40px; flex: 1; box-sizing: border-box; }
 .content-wrapper { max-width: 1400px; margin: 0 auto; padding: 0 20px; }
 .header-left { display: flex; align-items: center; gap: 15px; }
-
 .brand-link { text-decoration: none; display: flex; align-items: center; transition: transform 0.2s; }
 .brand-link:hover { transform: scale(1.02); cursor: pointer; }
 .main-title { color: #2ecc71; font-size: 1.5rem; margin: 0; font-weight: 800; } 
 .status-pill { padding: 4px 10px; border-radius: 20px; font-size: 0.75rem; font-weight: bold; color: white; text-transform: uppercase; }
 .online { background: #2ecc71; } .offline { background: #e74c3c; }
 .main-nav { display: flex; gap: 20px; align-items: center; }
-.nav-item { text-decoration: none; color: #bdc3c7; font-weight: 600; font-size: 0.95rem; transition: color 0.2s; background: none; border: none; font-family: inherit; cursor: pointer; display: flex; align-items: center; height: 70px; border-bottom: 3px solid transparent; }
-.nav-item:hover { color: #2ecc71; }
-.nav-item.router-link-active { color: #2ecc71; border-bottom-color: #2ecc71; } 
-.admin-link { color: #9b59b6 !important; }
-.admin-link:hover { color: #8e44ad !important; text-shadow: 0 0 10px rgba(142, 68, 173, 0.4); }
-.btn-logout { color: #e74c3c !important; height: auto; border: 1px solid #e74c3c; padding: 6px 14px; border-radius: 20px; font-size: 0.85rem; line-height: 1; border-bottom: 1px solid #e74c3c !important; }
+
+/* NAV ITEM BASE */
+.nav-item { 
+  text-decoration: none; 
+  color: #bdc3c7; 
+  font-weight: 600; 
+  font-size: 0.95rem; 
+  transition: color 0.2s; 
+  background: none; 
+  border: none; 
+  font-family: inherit; 
+  cursor: pointer; 
+  display: flex; 
+  align-items: center; 
+  height: 70px; 
+  border-bottom: 3px solid transparent; 
+}
+
+/* 1. DASHBOARD (Verde) */
+.dashboard-link:hover, .dashboard-link.router-link-active { color: #2ecc71; border-bottom-color: #2ecc71; }
+
+/* 2. ADMIN (Viola) */
+.admin-link:hover, .admin-link.router-link-active { color: #9b59b6; border-bottom-color: #9b59b6; text-shadow: 0 0 10px rgba(142, 68, 173, 0.4); }
+
+/* 3. PROFILO (Blu) */
+.profile-link:hover, .profile-link.router-link-active { color: #3498db; border-bottom-color: #3498db; }
+
+/* 4. LOGOUT (Rosso) */
+.btn-logout { 
+  color: #e74c3c !important; 
+  height: auto; 
+  border: 1px solid #e74c3c; 
+  padding: 6px 14px; 
+  border-radius: 20px; 
+  font-size: 0.85rem; 
+  line-height: 1; 
+  border-bottom: 1px solid #e74c3c !important; 
+  transition: all 0.2s;
+}
 .btn-logout:hover { background: #e74c3c; color: white !important; }
+
 .guest-badge { background: #3498db; color: white; padding: 4px 10px; border-radius: 4px; font-weight: bold; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.5px; }
 .level-up-modal { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: #f1c40f; color: white; padding: 20px 40px; border-radius: 50px; font-size: 2rem; z-index: 3000; font-weight: 900; animation: popIn 0.5s; }
 .badge-modal { position: fixed; top: 30%; left: 50%; transform: translate(-50%, -50%); background: #2c3e50; border: 4px solid #f1c40f; color: white; padding: 30px; text-align: center; border-radius: 20px; z-index: 4000; animation: popIn 0.5s; min-width: 300px; }
 .badge-modal .badge-icon { font-size: 5rem; margin-bottom: 15px; display: block; }
 @keyframes popIn { from { transform: translate(-50%, -50%) scale(0.8); opacity: 0; } to { transform: translate(-50%, -50%) scale(1); opacity: 1; }}
-
-.weather-banner {
-  position: fixed; top: 85px; left: 50%; transform: translateX(-50%);
-  width: 90%; max-width: 500px;
-  display: flex; align-items: center; gap: 15px;
-  padding: 15px 25px;
-  border-radius: 50px; 
-  z-index: 9999;
-  color: white;
-  box-shadow: 0 5px 20px rgba(0,0,0,0.4);
-  backdrop-filter: blur(5px);
-  border: 2px solid rgba(255,255,255,0.2);
-}
-
+.weather-banner { position: fixed; top: 85px; left: 50%; transform: translateX(-50%); width: 90%; max-width: 500px; display: flex; align-items: center; gap: 15px; padding: 15px 25px; border-radius: 50px; z-index: 9999; color: white; box-shadow: 0 5px 20px rgba(0,0,0,0.4); backdrop-filter: blur(5px); border: 2px solid rgba(255,255,255,0.2); }
 .weather-banner.rain { background: linear-gradient(90deg, #2980b9 0%, #3498db 100%); }
 .weather-banner.sunny { background: linear-gradient(90deg, #f39c12 0%, #f1c40f 100%); color: #2c3e50; }
-
-.weather-banner.critical {
-  background: linear-gradient(90deg, #c0392b 0%, #e74c3c 100%);
-  animation: pulse-border 1.5s infinite;
-  border-color: rgba(255, 255, 255, 0.5);
-}
-
+.weather-banner.critical { background: linear-gradient(90deg, #c0392b 0%, #e74c3c 100%); animation: pulse-border 1.5s infinite; border-color: rgba(255, 255, 255, 0.5); }
 .weather-icon { font-size: 2rem; }
 .weather-content h3 { margin: 0; font-size: 1.1rem; font-weight: 800; text-transform: uppercase; }
 .weather-content p { margin: 2px 0 0 0; font-size: 0.9rem; font-weight: 500; }
-
-@keyframes pulse-border {
-  0% { box-shadow: 0 0 0 0 rgba(231, 76, 60, 0.7); transform: translateX(-50%) scale(1); }
-  50% { box-shadow: 0 0 20px 5px rgba(231, 76, 60, 0.4); transform: translateX(-50%) scale(1.02); }
-  100% { box-shadow: 0 0 0 0 rgba(231, 76, 60, 0); transform: translateX(-50%) scale(1); }
-}
-
+@keyframes pulse-border { 0% { box-shadow: 0 0 0 0 rgba(231, 76, 60, 0.7); transform: translateX(-50%) scale(1); } 50% { box-shadow: 0 0 20px 5px rgba(231, 76, 60, 0.4); transform: translateX(-50%) scale(1.02); } 100% { box-shadow: 0 0 0 0 rgba(231, 76, 60, 0); transform: translateX(-50%) scale(1); } }
 .drop-in-enter-active, .drop-in-leave-active { transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
 .drop-in-enter-from, .drop-in-leave-to { transform: translate(-50%, -80px); opacity: 0; }
 </style>

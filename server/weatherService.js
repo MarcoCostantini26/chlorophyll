@@ -1,14 +1,10 @@
 const Tree = require('./models/Tree');
 
-// CONFIGURAZIONE BOLOGNA
-const LAT = 44.4949;
-const LON = 11.3426;
-const API_URL = `https://api.open-meteo.com/v1/forecast?latitude=${LAT}&longitude=${LON}&current_weather=true`;
-
-// INTERVALLO: 10 MINUTI (Non toccare, serve per la reattività del meteo reale)
+// INTERVALLO: 10 MINUTI
 const TICK_RATE = 600000; 
 
-let currentWeather = 'sunny';
+// COORDINATE DI DEFAULT (Per l'icona della UI principale)
+const DEFAULT_CITY = { lat: 44.4949, lng: 11.3426 }; // Bologna
 
 const calculateStatus = (level) => {
   if (level >= 60) return 'healthy';
@@ -16,31 +12,25 @@ const calculateStatus = (level) => {
   return 'critical';
 };
 
-// --- CONFIGURAZIONE PROBABILITÀ (0.10 = 10% di possibilità) ---
-// Questo determina QUANTE VOLTE viene applicato il -1 o il +1.
-// Esempio: "sunny: 0.15" significa che ogni 10 minuti c'è il 15% di probabilità che perda 1%.
+// CONFIGURAZIONE PROBABILITÀ
 const WEATHER_CHANCE = {
-  tree:            { sunny: 0.15,  cloudy: 0.05,  rainy: 1.0 }, // 1.0 = Piove sempre quando è rainy
+  tree:            { sunny: 0.15,  cloudy: 0.05,  rainy: 1.0 }, 
   flowerbed:       { sunny: 0.20,  cloudy: 0.10,  rainy: 1.0 },
   vertical_garden: { sunny: 0.20,  cloudy: 0.10,  rainy: 1.0 },
   hedge:           { sunny: 0.10,  cloudy: 0.02,  rainy: 1.0 },
   bush:            { sunny: 0.10,  cloudy: 0.02,  rainy: 1.0 },
-  potted:          { sunny: 0.25,  cloudy: 0.15,  rainy: 1.0 }, // Vasi si asciugano più spesso
-  succulent:       { sunny: 0.02,  cloudy: 0.00,  rainy: 0.5 }, // Grasse resistentissime
+  potted:          { sunny: 0.25,  cloudy: 0.15,  rainy: 1.0 }, 
+  succulent:       { sunny: 0.02,  cloudy: 0.00,  rainy: 0.5 }, 
   default:         { sunny: 0.15,  cloudy: 0.05,  rainy: 1.0 }
 };
 
-// Valore fisso di cambio quando il dado "vince" (sempre Interi!)
 const CHANGE_AMOUNT = {
-  sunny: -1,  // Perde 1%
-  cloudy: -1, // Perde 1%
-  rainy: +3   // Guadagna 3% (la pioggia è efficace)
+  sunny: -1,  cloudy: -1, rainy: +3   
 };
 
-// --- BACKFILLING (Recupero Offline basato sulla media statistica) ---
+// --- BACKFILLING GRADUALE (Recupero Offline) ---
 const fillMissingHistoryOnStart = async () => {
-  console.log("🔄 [Meteo] Backfilling Statistico (Server avviato)...");
-  
+  console.log("🔄 [Meteo] Backfilling Graduale...");
   try {
     const allTreesIds = await Tree.find({}, '_id'); 
     const now = new Date();
@@ -55,150 +45,136 @@ const fillMissingHistoryOnStart = async () => {
       const diffMs = now - lastDate;
       const missedTicks = Math.floor(diffMs / TICK_RATE);
 
-      if (missedTicks > 0) {
-        let currentVal = tree.waterLevel;
-        
-        // Prendiamo la chance media per il tipo di pianta (scenario Sunny)
+      if (missedTicks > 2) {
+        // Simuliamo scenario 'sunny' per penalità offline
         const chance = WEATHER_CHANCE[tree.category]?.sunny || WEATHER_CHANCE.default.sunny;
-        
-        // Calcolo Statistico: Se sono passati 100 tick con il 15% di chance,
-        // statisticamente hai perso 15 punti.
-        // Math.floor(100 * 0.15) = 15 punti persi.
         const totalLoss = Math.floor(missedTicks * chance);
 
         if (totalLoss > 0) {
-          // Creiamo solo un punto finale per non intasare il DB
-          currentVal = Math.max(currentVal - totalLoss, 0);
+          // Creiamo un punto ogni ORA circa (6 tick)
+          const pointsToCreate = Math.ceil(missedTicks / 6); 
+          const lossPerPoint = totalLoss / pointsToCreate;
+          const timeStep = diffMs / pointsToCreate;
           
-          tree.history.push({ val: currentVal, date: now });
+          let simVal = lastEntry.val;
+          let currentVal = tree.waterLevel;
+
+          for (let i = 1; i <= pointsToCreate; i++) {
+            const simDate = new Date(lastDate.getTime() + (i * timeStep));
+            simVal = Math.max(simVal - lossPerPoint, 0);
+            const finalVal = Math.round(simVal * 100) / 100;
+            
+            tree.history.push({ val: finalVal, date: simDate });
+            currentVal = finalVal;
+          }
+
           tree.waterLevel = currentVal;
           tree.status = calculateStatus(currentVal);
           tree.lastWatered = now;
           
-          if (tree.history.length > 50) tree.history = tree.history.slice(-50);
+          if (tree.history.length > 100) tree.history = tree.history.slice(-100);
           
           await tree.save();
-          totalPointsAdded++;
-          console.log(`🌲 [Offline] ${tree.name}: Persi ${totalLoss}% (in ${missedTicks} cicli mancati)`);
+          totalPointsAdded += pointsToCreate;
         }
       }
     }
-
-    if (totalPointsAdded > 0) console.log(`✅ Backfilling completato.`);
-    else console.log(`✅ Nessun cambiamento rilevante durante l'offline.`);
-
+    console.log(`✅ Backfilling: Generati ${totalPointsAdded} punti interpolati.`);
   } catch (e) {
     console.error("❌ Errore Backfilling:", e);
   }
 };
 
-// --- AGGIORNAMENTO CICLICO (Probabilistico) ---
-const applyWeatherChange = async (treeId, category) => {
-  let attempts = 0;
-  while (attempts < 3) {
-    try {
-      const tree = await Tree.findById(treeId);
-      if (!tree) return null;
+// --- LOGICA MULTI-CITTÀ ---
+const processGroupsWeather = async (io) => {
+  try {
+    const allTrees = await Tree.find();
+    if (allTrees.length === 0) return;
 
-      // 1. Recupera la probabilità (Chance)
-      const chances = WEATHER_CHANCE[category] || WEATHER_CHANCE.default;
-      let chanceThreshold = 0;
-      let amount = 0;
+    // 1. Raggruppa alberi per coordinate simili (Arrotondate a 1 decimale ~= 10km)
+    const groups = {};
+    for (const tree of allTrees) {
+      if (!tree.location || !tree.location.lat) continue;
+      // Chiave univoca per zona (es: "45.5_9.2" per Milano)
+      const key = `${tree.location.lat.toFixed(1)}_${tree.location.lng.toFixed(1)}`;
+      if (!groups[key]) groups[key] = { lat: tree.location.lat, lng: tree.location.lng, trees: [] };
+      groups[key].trees.push(tree);
+    }
 
-      if (currentWeather === 'rainy') {
-        chanceThreshold = chances.rainy; // Di solito 1.0 (100%)
-        amount = CHANGE_AMOUNT.rainy;
-      } else if (currentWeather === 'sunny') {
-        chanceThreshold = chances.sunny; // Es. 0.15 (15%)
-        amount = CHANGE_AMOUNT.sunny;
-      } else {
-        chanceThreshold = chances.cloudy; // Es. 0.05 (5%)
-        amount = CHANGE_AMOUNT.cloudy;
+    let totalUpdates = 0;
+    let mainWeather = 'sunny'; // Meteo di default per la UI
+
+    // 2. Processa ogni gruppo
+    for (const key in groups) {
+      const group = groups[key];
+      
+      // Chiamata API per questo gruppo
+      const response = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${group.lat}&longitude=${group.lng}&current_weather=true`);
+      const data = await response.json();
+      
+      let weather = 'sunny';
+      if (data && data.current_weather) {
+        const code = data.current_weather.weathercode;
+        if (code <= 1) weather = 'sunny';
+        else if (code <= 48) weather = 'cloudy';
+        else weather = 'rainy';
       }
 
-      // 2. LANCIO DEL DADO (0.0 a 1.0)
-      const diceRoll = Math.random();
+      // Se questo gruppo è vicino alle coordinate di default (Bologna), usalo per la UI
+      if (Math.abs(group.lat - DEFAULT_CITY.lat) < 0.2 && Math.abs(group.lng - DEFAULT_CITY.lng) < 0.2) {
+        mainWeather = weather;
+      }
 
-      // Se il dado è maggiore della soglia, NON succede nulla.
-      // Es: Soglia 0.15. Dado esce 0.80 -> Niente acqua persa.
-      if (diceRoll > chanceThreshold) return null;
+      // Applica effetti agli alberi del gruppo
+      for (const tree of group.trees) {
+        const chances = WEATHER_CHANCE[tree.category] || WEATHER_CHANCE.default;
+        let chance = 0, amount = 0;
 
-      // 3. Se vince, applica il cambiamento intero (+3 o -1)
-      const oldWater = tree.waterLevel;
-      let newVal = tree.waterLevel + amount;
+        if (weather === 'rainy') { chance = chances.rainy; amount = CHANGE_AMOUNT.rainy; }
+        else if (weather === 'sunny') { chance = chances.sunny; amount = CHANGE_AMOUNT.sunny; }
+        else { chance = chances.cloudy; amount = CHANGE_AMOUNT.cloudy; }
 
-      // Limiti 0-100
-      if (newVal > 100) newVal = 100;
-      if (newVal < 0) newVal = 0;
+        if (Math.random() > chance) continue; // Dado
 
-      if (newVal === oldWater) return null;
+        const oldWater = tree.waterLevel;
+        let newVal = Math.min(Math.max(tree.waterLevel + amount, 0), 100);
 
-      tree.waterLevel = newVal;
-      tree.status = calculateStatus(tree.waterLevel);
-
-      // Aggiorna storico
-      if (!tree.history) tree.history = [];
-      tree.history.push({ val: tree.waterLevel, date: new Date() });
-      if (tree.history.length > 50) tree.history.shift(); 
-
-      await tree.save();
-      return tree; 
-
-    } catch (err) {
-      if (err.name === 'VersionError') {
-        attempts++;
-        await new Promise(res => setTimeout(res, 200)); 
-      } else {
-        break;
+        if (newVal !== oldWater) {
+          tree.waterLevel = newVal;
+          tree.status = calculateStatus(newVal);
+          if (!tree.history) tree.history = [];
+          tree.history.push({ val: newVal, date: new Date() });
+          if (tree.history.length > 50) tree.history.shift();
+          await tree.save();
+          totalUpdates++;
+        }
       }
     }
+
+    // 3. Eventi
+    if (totalUpdates > 0) {
+      const updatedTrees = await Tree.find();
+      io.emit('trees_refresh', updatedTrees);
+      console.log(`🌍 Meteo Applicato: ${totalUpdates} alberi aggiornati.`);
+    }
+    
+    // Manda sempre un meteo "generale" per non rompere l'icona in alto a destra
+    io.emit('weather_update', mainWeather);
+
+  } catch (e) {
+    console.error("❌ Errore ciclo meteo:", e.message);
   }
-  return null;
 };
 
 const startWeatherSimulation = async (io) => {
-  console.log(`🌦️ Avvio Meteo BOLOGNA (Probabilistico - Numeri Interi)`);
-
+  console.log(`🌦️ Avvio Meteo Geografico (Update ogni 10 min)`);
   await fillMissingHistoryOnStart();
-
-  const updateForest = async () => {
-    try {
-      // 1. Fetch Meteo Reale
-      const response = await fetch(API_URL);
-      const data = await response.json();
-      
-      if (data && data.current_weather) {
-        const wmoCode = data.current_weather.weathercode;
-        if (wmoCode <= 1) currentWeather = 'sunny';
-        else if (wmoCode <= 48) currentWeather = 'cloudy';
-        else currentWeather = 'rainy';
-        
-        io.emit('weather_update', currentWeather);
-      }
-
-      // 2. Applica effetti probabilistici
-      const allTreesBasic = await Tree.find({}, '_id category'); 
-      const updates = allTreesBasic.map(t => applyWeatherChange(t._id, t.category));
-      
-      const results = await Promise.all(updates);
-      
-      // 3. Notifica client se qualcuno è cambiato
-      const changedTrees = results.filter(r => r !== null);
-      if (changedTrees.length > 0) {
-        const updatedTrees = await Tree.find(); 
-        io.emit('trees_refresh', updatedTrees);
-        // console.log(`🎲 Dado lanciato: ${changedTrees.length} piante modificate.`);
-      }
-
-    } catch (err) {
-      console.error('❌ Errore ciclo meteo:', err.message);
-    }
-  };
-
-  updateForest();
-  setInterval(updateForest, TICK_RATE); 
+  
+  processGroupsWeather(io);
+  setInterval(() => processGroupsWeather(io), TICK_RATE); 
 };
 
-const getCurrentWeather = () => currentWeather;
+// Export dummy per compatibilità
+const getCurrentWeather = () => 'sunny'; 
 
 module.exports = { startWeatherSimulation, getCurrentWeather };
