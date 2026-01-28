@@ -16,19 +16,14 @@ watch(() => props.user, (newUser) => {
   editData.value.avatar = newUser.avatar;
 }, { deep: true });
 
-// --- CALCOLI STATISTICHE REALI ---
+// --- CALCOLI ---
 const nextLevelXp = computed(() => props.user.level * 100);
 const progressPercent = computed(() => (props.user.xp % 100));
-
-// 1. Conta quanti badge ha l'utente nell'array
 const badgesCount = computed(() => props.user.badges ? props.user.badges.length : 0);
-
-// 2. Stima Acqua: 1 Azione = 15 XP. Supponiamo 5 Litri ad azione.
 const realWaterGiven = computed(() => {
   const actions = Math.floor(props.user.xp / 15); 
   return actions * 5; 
 });
-
 const treesCount = computed(() => props.user.adoptedTrees ? props.user.adoptedTrees.length : 0);
 
 const saveProfile = async () => {
@@ -46,7 +41,7 @@ const saveProfile = async () => {
     const updatedUser = await res.json();
     emit('update-profile', updatedUser);
     isEditing.value = false;
-    alert("Profilo aggiornato! ✨");
+    // Feedback visivo o alert
   } catch (e) { alert(e.message); }
 };
 
@@ -102,12 +97,8 @@ const avatars = ['👤', '👨‍🌾', '👩‍🌾', '🦊', '🐻', '🐝', '
             </div>
             
             <div class="actions-top">
-              <button @click="isEditing = true" class="btn-action edit">
-                Modifica
-              </button>
-              <button @click="$emit('logout')" class="btn-action logout">
-                Esci
-              </button>
+              <button @click="isEditing = true" class="btn-action edit">Modifica</button>
+              <button @click="$emit('logout')" class="btn-action logout">Esci</button>
             </div>
           </div>
 
@@ -122,31 +113,18 @@ const avatars = ['👤', '👨‍🌾', '👩‍🌾', '🦊', '🐻', '🐝', '
           </div>
 
           <div class="stats-row">
-            
             <div class="stat-pill">
               <span class="icon">🏆</span> 
-              <div class="stat-text">
-                <strong>{{ badgesCount }}</strong> 
-                <small>Trofei</small>
-              </div>
+              <div class="stat-text"><strong>{{ badgesCount }}</strong><small>Trofei</small></div>
             </div>
-
             <div class="stat-pill">
               <span class="icon">💧</span> 
-              <div class="stat-text">
-                <strong>{{ realWaterGiven }}L</strong> 
-                <small>Versati</small>
-              </div>
+              <div class="stat-text"><strong>{{ realWaterGiven }}L</strong><small>Versati</small></div>
             </div>
-
             <div class="stat-pill highlight">
               <span class="icon">🌲</span> 
-              <div class="stat-text">
-                <strong>{{ treesCount }}</strong> 
-                <small>Alberi</small>
-              </div>
+              <div class="stat-text"><strong>{{ treesCount }}</strong><small>Alberi</small></div>
             </div>
-            
           </div>
         </div>
 
@@ -158,27 +136,25 @@ const avatars = ['👤', '👨‍🌾', '👩‍🌾', '🦊', '🐻', '🐝', '
 </template>
 
 <style scoped>
-/* WRAPPER GENERALE */
+/* --- 1. STILI BASE (MOBILE FIRST) --- */
 .profile-wide-wrapper {
   display: flex;
   justify-content: center;
   align-items: flex-start;
   min-height: 80vh;
-  padding-top: 60px;
-  padding-left: 20px;
-  padding-right: 20px;
+  /* Padding ridotto su mobile perché App.vue ha già spazio header */
+  padding: 20px 15px; 
   color: #ecf0f1;
 }
 
-/* CARD WIDE */
 .wide-card {
   width: 100%;
   max-width: 850px; 
   background: #1e1e1e;
-  border-radius: 24px;
-  padding: 40px;
+  border-radius: 20px;
+  padding: 25px; /* Padding interno ridotto per mobile */
   border: 1px solid #333;
-  box-shadow: 0 20px 60px rgba(0,0,0,0.4);
+  box-shadow: 0 10px 30px rgba(0,0,0,0.4);
   position: relative;
   overflow: hidden;
 }
@@ -187,19 +163,25 @@ const avatars = ['👤', '👨‍🌾', '👩‍🌾', '🦊', '🐻', '🐝', '
   background: linear-gradient(180deg, #2ecc71, #f1c40f);
 }
 
-/* HEADER */
-.card-header { display: flex; justify-content: space-between; margin-bottom: 40px; padding-bottom: 15px; border-bottom: 1px solid #333; }
-.brand-logo { font-weight: 800; text-transform: uppercase; letter-spacing: 2px; color: #2ecc71; }
-.id-chip { font-family: monospace; color: #7f8c8d; background: #121212; padding: 4px 8px; border-radius: 4px; border: 1px solid #333; font-size: 0.8rem; }
+/* Header Card */
+.card-header { display: flex; justify-content: space-between; margin-bottom: 25px; padding-bottom: 15px; border-bottom: 1px solid #333; }
+.brand-logo { font-weight: 800; text-transform: uppercase; letter-spacing: 1px; color: #2ecc71; font-size: 0.9rem; }
+.id-chip { font-family: monospace; color: #7f8c8d; background: #121212; padding: 2px 6px; border-radius: 4px; border: 1px solid #333; font-size: 0.75rem; }
 
-/* LAYOUT ORIZZONTALE */
-.view-mode-content { display: flex; gap: 40px; align-items: flex-start; }
+/* -- SEZIONE PROFILO (Mobile: Colonna) -- */
+.view-mode-content { 
+  display: flex; 
+  flex-direction: column; /* Default: Colonna */
+  align-items: center; 
+  text-align: center; 
+  gap: 30px; 
+}
 
-/* SINISTRA */
+/* Avatar Section */
 .left-section { position: relative; text-align: center; min-width: 160px; flex-shrink: 0; }
 .avatar-big {
-  width: 160px; height: 160px; background: #2c3e50; border-radius: 50%;
-  display: flex; align-items: center; justify-content: center; font-size: 5rem;
+  width: 140px; height: 140px; background: #2c3e50; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center; font-size: 4rem;
   border: 4px solid #1e1e1e; box-shadow: 0 10px 30px rgba(0,0,0,0.3); margin: 0 auto;
 }
 .level-badge {
@@ -208,79 +190,86 @@ const avatars = ['👤', '👨‍🌾', '👩‍🌾', '🦊', '🐻', '🐝', '
   display: inline-block; box-shadow: 0 4px 10px rgba(0,0,0,0.2);
 }
 
-/* DESTRA */
+/* Info Section */
 .right-section { flex: 1; display: flex; flex-direction: column; gap: 25px; width: 100%; }
 
-.user-header { display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 15px; }
-.username { margin: 0; font-size: 2.5rem; color: white; line-height: 1; margin-bottom: 5px; }
-.role-text { color: #2ecc71; text-transform: uppercase; font-weight: bold; font-size: 0.9rem; letter-spacing: 1px; }
+.user-header { 
+  display: flex; flex-direction: column; /* Default: Stack */
+  align-items: center; 
+  gap: 15px; width: 100%; 
+}
+.name-box { margin-bottom: 5px; }
+.username { margin: 0; font-size: 2rem; color: white; line-height: 1; margin-bottom: 5px; }
+.role-text { color: #2ecc71; text-transform: uppercase; font-weight: bold; font-size: 0.85rem; letter-spacing: 1px; }
 
-/* PULSANTI ESPLICITI */
-.actions-top { display: flex; gap: 10px; }
+/* Buttons */
+.actions-top { 
+  display: grid; grid-template-columns: 1fr 1fr; /* 2 bottoni affiancati */
+  gap: 10px; width: 100%; 
+}
 .btn-action {
-  padding: 10px 18px; border-radius: 10px; font-weight: bold; cursor: pointer; border: none; font-size: 0.9rem; transition: transform 0.2s;
+  padding: 12px; border-radius: 10px; font-weight: bold; cursor: pointer; border: none; font-size: 0.9rem; width: 100%;
 }
 .btn-action.edit { background: #333; color: white; border: 1px solid #444; }
-.btn-action.edit:hover { background: #444; }
 .btn-action.logout { background: transparent; color: #e74c3c; border: 1px solid #e74c3c; }
-.btn-action.logout:hover { background: #e74c3c; color: white; }
 
-/* XP MODULE */
-.xp-module { background: rgba(0,0,0,0.2); padding: 15px; border-radius: 12px; border: 1px solid #333; }
-.xp-info { display: flex; justify-content: space-between; margin-bottom: 8px; font-size: 0.9rem; color: #aaa; }
+/* XP Module */
+.xp-module { background: rgba(0,0,0,0.2); padding: 15px; border-radius: 12px; border: 1px solid #333; text-align: left; }
+.xp-info { display: flex; justify-content: space-between; margin-bottom: 8px; font-size: 0.85rem; color: #aaa; }
 .progress-bg { height: 10px; background: #121212; border-radius: 5px; overflow: hidden; }
 .progress-bar { height: 100%; background: linear-gradient(90deg, #f1c40f, #e67e22); border-radius: 5px; transition: width 0.5s; }
 
-/* STATS ROW */
-.stats-row { display: flex; gap: 15px; flex-wrap: wrap; }
+/* Stats Row (Mobile: Stack o Grid stretta) */
+.stats-row { display: flex; flex-direction: column; gap: 10px; width: 100%; }
 .stat-pill { 
   background: #252525; padding: 12px 20px; border-radius: 12px; 
-  display: flex; align-items: center; gap: 15px; border: 1px solid #333; flex: 1; min-width: 110px;
+  display: flex; align-items: center; gap: 15px; border: 1px solid #333; 
+  width: 100%; justify-content: flex-start; /* Allinea a sx su mobile */
 }
 .stat-pill.highlight { border-color: #2ecc71; background: rgba(46, 204, 113, 0.1); }
 .stat-pill .icon { font-size: 1.8rem; }
-.stat-text { display: flex; flex-direction: column; }
+.stat-text { display: flex; flex-direction: column; text-align: left; }
 .stat-text strong { font-size: 1.2rem; color: white; line-height: 1; }
 .stat-text small { color: #7f8c8d; text-transform: uppercase; font-weight: bold; font-size: 0.7rem; }
 
-/* EDIT MODE STYLES */
+/* EDIT MODE (Mobile: Colonna) */
 .edit-mode-content h3 { color: #f1c40f; margin-top: 0; }
-.edit-grid { display: flex; gap: 30px; }
-.input-col { flex: 2; }
-.actions-col { flex: 1; display: flex; flex-direction: column; gap: 15px; justify-content: center; }
+.edit-grid { display: flex; flex-direction: column; gap: 20px; } /* Stack verticale */
+.input-col { width: 100%; }
+.actions-col { display: flex; gap: 10px; width: 100%; } /* Bottoni affiancati */
 
-.minimal-input { width: 100%; background: #151515; border: 1px solid #444; padding: 15px; border-radius: 8px; color: white; font-size: 1.1rem; box-sizing: border-box; }
-.minimal-input:focus { border-color: #2ecc71; outline: none; }
+.minimal-input { width: 100%; background: #151515; border: 1px solid #444; padding: 15px; border-radius: 8px; color: white; font-size: 1.1rem; }
 .mt-20 { margin-top: 20px; display: block; color: #aaa; margin-bottom: 10px; }
 
-.avatars-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 10px; }
-.avatars-grid button { font-size: 1.5rem; background: #252525; border: 2px solid transparent; border-radius: 8px; padding: 5px; cursor: pointer; transition: 0.2s; }
-.avatars-grid button.active { border-color: #2ecc71; background: rgba(46, 204, 113, 0.15); transform: scale(1.1); }
+.avatars-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+.avatars-grid button { font-size: 1.5rem; background: #252525; border: 2px solid transparent; border-radius: 8px; padding: 5px; cursor: pointer; }
+.avatars-grid button.active { border-color: #2ecc71; background: rgba(46, 204, 113, 0.15); }
 
-.btn-save { padding: 15px; background: #2ecc71; border: none; border-radius: 8px; font-weight: bold; cursor: pointer; color: white; font-size: 1rem; width: 100%; }
-.btn-cancel { padding: 15px; background: transparent; border: 2px solid #555; border-radius: 8px; font-weight: bold; cursor: pointer; color: #ccc; width: 100%; }
+.btn-save { padding: 12px; background: #2ecc71; border: none; border-radius: 8px; font-weight: bold; cursor: pointer; color: white; flex: 1; }
+.btn-cancel { padding: 12px; background: transparent; border: 2px solid #555; border-radius: 8px; font-weight: bold; cursor: pointer; color: #ccc; flex: 1; }
 
-/* --- RESPONSIVE MOBILE (Sotto 768px) --- */
-@media (max-width: 768px) {
-  .wide-card { padding: 25px; }
-  
-  /* Layout verticale */
-  .view-mode-content { flex-direction: column; align-items: center; text-align: center; gap: 30px; }
-  
-  /* Header utente stackato */
-  .user-header { flex-direction: column; align-items: center; width: 100%; text-align: center; }
-  .name-box { margin-bottom: 10px; }
-  .actions-top { width: 100%; justify-content: center; display: grid; grid-template-columns: 1fr 1fr; }
-  .btn-action { width: 100%; justify-content: center; }
 
-  /* Edit Mode */
-  .edit-grid { flex-direction: column; }
-  .actions-col { flex-direction: row; }
+/* --- 2. MEDIA QUERY DESKTOP (Tablet & PC - >768px) --- */
+@media (min-width: 768px) {
+  .profile-wide-wrapper { padding-top: 60px; }
+  .wide-card { padding: 40px; }
+
+  /* Layout Orizzontale */
+  .view-mode-content { flex-direction: row; text-align: left; gap: 40px; align-items: flex-start; }
   
-  /* Avatar Grid */
-  .avatars-grid { grid-template-columns: repeat(4, 1fr); }
-  
-  /* Stats verticali o a griglia */
-  .stats-row { width: 100%; }
+  .user-header { flex-direction: row; justify-content: space-between; }
+  .username { font-size: 2.5rem; }
+  .actions-top { width: auto; display: flex; gap: 10px; }
+  .btn-action { width: auto; padding: 10px 18px; }
+
+  .stats-row { flex-direction: row; flex-wrap: wrap; }
+  .stat-pill { width: auto; flex: 1; min-width: 110px; justify-content: center; }
+  .stat-text { text-align: center; align-items: center; }
+
+  /* Edit Mode Desktop */
+  .edit-grid { flex-direction: row; gap: 30px; }
+  .actions-col { flex-direction: column; width: auto; justify-content: center; }
+  .avatars-grid { grid-template-columns: repeat(6, 1fr); }
+  .avatar-big { width: 160px; height: 160px; font-size: 5rem; }
 }
 </style>
