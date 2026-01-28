@@ -16,7 +16,7 @@ const usersRoutes = require('./routes/users');
 const adminRoutes = require('./routes/admin');
 const aiRoutes = require('./routes/ai');
 
-// 👇 IMPORT AGGIORNATO: Importa tutte e 3 le funzioni necessarie
+// Import Meteo (Tutte le funzioni)
 const { startWeatherSimulation, getCurrentWeather, getLastWeatherMap } = require('./weatherService'); 
 
 const app = express();
@@ -67,12 +67,8 @@ startWeatherSimulation(io);
 io.on('connection', (socket) => {
   console.log(`🔌 Utente connesso: ${socket.id}`);
 
-  // 1. Manda Meteo Istantaneo (Legacy)
-  // Ora funziona perché getCurrentWeather è importato correttamente
+  // Manda Meteo SUBITO (senza attesa)
   socket.emit('weather_update', getCurrentWeather());
-
-  // 2. Manda Mappa Meteo Aggiornata SUBITO (NUOVO!)
-  // Recupera l'ultima mappa dalla memoria e la invia subito
   const currentMap = getLastWeatherMap();
   socket.emit('weather_map_update', currentMap);
 
@@ -89,7 +85,7 @@ io.on('connection', (socket) => {
       let newLevel = tree.waterLevel + healthGain;
       if (newLevel > 100) newLevel = 100;
 
-      // UN PUNTO PER MINUTO
+      // Gestione Storico (1 punto al minuto)
       const lastEntry = tree.history.length > 0 ? tree.history[tree.history.length - 1] : null;
       let isSameMinute = false;
 
@@ -119,11 +115,10 @@ io.on('connection', (socket) => {
 
       await tree.save();
       
+      // ⚡ OTTIMIZZAZIONE: Mandiamo SOLO questo albero aggiornato!
       io.emit('tree_updated', tree);
-      const allTrees = await Tree.find();
-      io.emit('trees_refresh', allTrees);
 
-      // Gestione XP
+      // Gestione XP e Badge
       if (userId && userId !== 'guest') {
         let actionName = 'water';
         if (['hedge', 'bush'].includes(tree.category)) actionName = 'prune';
@@ -173,7 +168,7 @@ io.on('connection', (socket) => {
     } catch (e) { console.error("Errore water_tree:", e); }
   });
 
-  // --- AZIONE ADMIN ---
+  // --- AZIONE ADMIN (Force Water) ---
   socket.on('admin_force_water', async ({ treeId, amount }) => {
     try {
       const tree = await Tree.findById(treeId);
@@ -207,9 +202,8 @@ io.on('connection', (socket) => {
 
       await tree.save();
       
+      // ⚡ OTTIMIZZAZIONE
       io.emit('tree_updated', tree);
-      const allTrees = await Tree.find();
-      io.emit('trees_refresh', allTrees);
       
     } catch (e) { console.error(e); }
   });

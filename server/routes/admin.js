@@ -3,84 +3,92 @@ const router = express.Router();
 const Tree = require('../models/Tree');
 const ActionLog = require('../models/ActionLog');
 
-// GET /api/admin/analytics
+// 1. ENDPOINT ANALYTICS (Per la Control Room)
+// Carica i dati ottimizzati: storico tagliato agli ultimi 20 punti.
 router.get('/analytics', async (req, res) => {
   try {
-    const allTrees = await Tree.find();
-    
-    // 1. Statistiche Totali
+    const allTrees = await Tree.find({}, {
+      name: 1, 
+      category: 1, 
+      status: 1, 
+      waterLevel: 1, 
+      city: 1, 
+      location: 1,
+      // 🔥 MAGIC TRICK: Prende solo gli ultimi 20 valori dello storico!
+      history: { $slice: -20 } 
+    });
+
     const totalTrees = allTrees.length;
     const criticalTrees = allTrees.filter(t => t.status === 'critical').length;
-    const healthyTrees = allTrees.filter(t => t.status === 'healthy').length;
     const thirstyTrees = allTrees.filter(t => t.status === 'thirsty').length;
-    
-    // 2. Media Acqua
-    let sumWater = 0;
-    allTrees.forEach(t => sumWater += (t.waterLevel || 0));
-    const avgWater = totalTrees > 0 ? Math.round(sumWater / totalTrees) : 0;
+    const healthyTrees = allTrees.filter(t => t.status === 'healthy').length;
 
-    // 3. Dati Dettagliati per Categoria (PER IL GRAFICO STACKED)
-    const statsByCategory = {};
-    
+    const totalWater = allTrees.reduce((sum, t) => sum + t.waterLevel, 0);
+    const avgWater = totalTrees > 0 ? Math.round(totalWater / totalTrees) : 0;
+
+    // Raggruppa per Categorie
+    const categories = {};
     allTrees.forEach(t => {
-      const cat = t.category || 'tree';
-      
-      // Inizializza se non esiste
-      if (!statsByCategory[cat]) {
-        statsByCategory[cat] = { healthy: 0, thirsty: 0, critical: 0 };
-      }
-      
-      // Incrementa il contatore specifico dello stato
-      const status = t.status || 'healthy'; // Fallback
-      if (statsByCategory[cat][status] !== undefined) {
-        statsByCategory[cat][status]++;
-      }
+      const cat = t.category || 'other';
+      if (!categories[cat]) categories[cat] = { total: 0, healthy: 0, thirsty: 0, critical: 0 };
+      categories[cat].total++;
+      categories[cat][t.status]++;
     });
 
     res.json({
       totalTrees,
       criticalTrees,
-      healthyTrees,
       thirstyTrees,
+      healthyTrees,
       avgWater,
-      categories: statsByCategory, // Ora contiene { tree: { healthy: 5, thirsty: 2... }, ... }
-      allTrees
+      categories,
+      allTrees // Manda la lista ottimizzata
     });
-  } catch (e) {
-    console.error("Errore analytics:", e);
-    res.status(500).json({ error: e.message });
+
+  } catch (err) {
+    res.status(500).json({ message: err.message });
   }
 });
 
-// GET /api/admin/stats
+// 2. STATISTICHE VELOCI (Per AdminPanel Widget)
 router.get('/stats', async (req, res) => {
   try {
-    const allTrees = await Tree.find();
-    const totalTrees = allTrees.length;
-    const criticalTrees = allTrees.filter(t => t.status === 'critical').length;
-    const healthyTrees = allTrees.filter(t => t.status === 'healthy').length;
-    const thirstyTrees = allTrees.filter(t => t.status === 'thirsty').length;
+    const trees = await Tree.find().select('status waterLevel');
+    const totalTrees = trees.length;
+    const criticalTrees = trees.filter(t => t.status === 'critical').length;
+    const thirstyTrees = trees.filter(t => t.status === 'thirsty').length;
+    const healthyTrees = trees.filter(t => t.status === 'healthy').length;
     
-    let sumWater = 0;
-    allTrees.forEach(t => sumWater += (t.waterLevel || 0));
-    const avgWater = totalTrees > 0 ? Math.round(sumWater / totalTrees) : 0;
-    
-    res.json({ totalTrees, criticalTrees, healthyTrees, thirstyTrees, avgWater });
-  } catch (e) { res.status(500).json({ error: e.message }); }
+    const totalWater = trees.reduce((sum, t) => sum + t.waterLevel, 0);
+    const avgWater = totalTrees > 0 ? Math.round(totalWater / totalTrees) : 0;
+
+    res.json({ totalTrees, criticalTrees, thirstyTrees, healthyTrees, avgWater });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
 });
 
-// GET /api/admin/logs
+// 3. LOG DI SISTEMA
 router.get('/logs', async (req, res) => {
   try {
-    const logs = await ActionLog.find().sort({ timestamp: -1 }).limit(50).populate('user', 'username').populate('tree', 'name');
+    const logs = await ActionLog.find()
+      .populate('user', 'username')
+      .populate('tree', 'name')
+      .sort({ timestamp: -1 })
+      .limit(50);
     res.json(logs);
-  } catch (e) { res.status(500).json({ error: "Errore log" }); }
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
 });
 
-// DELETE /api/admin/logs
 router.delete('/logs', async (req, res) => {
-  await ActionLog.deleteMany({});
-  res.json({ success: true });
+  try {
+    await ActionLog.deleteMany({});
+    res.json({ message: 'Log svuotati' });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
 });
 
 module.exports = router;

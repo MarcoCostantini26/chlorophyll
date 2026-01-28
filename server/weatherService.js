@@ -31,6 +31,7 @@ const CHANGE_AMOUNT = {
   sunny: -1,  cloudy: -1, rainy: +3   
 };
 
+// Pausa per API
 const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
 const fetchCityName = async (lat, lng) => {
@@ -180,7 +181,8 @@ const processGroupsWeather = async (io) => {
     io.emit('weather_map_update', cityWeatherMap);
     
     if (totalUpdates > 0) {
-      const updatedTrees = await Tree.find();
+      // ⚡ OTTIMIZZAZIONE: Lista leggera senza history
+      const updatedTrees = await Tree.find().select('-history');
       io.emit('trees_refresh', updatedTrees);
       console.log(`🌲 Foresta: ${totalUpdates} mod. | Città: ${Object.keys(cityWeatherMap).length}`);
     }
@@ -198,7 +200,7 @@ const startWeatherSimulation = async (io) => {
   setInterval(() => processGroupsWeather(io), TICK_RATE); 
 };
 
-// --- EXPORT CORRETTO ---
+// Export Completo
 const getCurrentWeather = () => 'sunny'; 
 const getLastWeatherMap = () => currentMap;
 
