@@ -121,6 +121,7 @@ onMounted(fetchAnalytics);
 .analytics-page { padding: 40px; padding-top: 10px; max-width: 1400px; margin: 0 auto; font-family: 'Inter', sans-serif; color: #2c3e50; }
 .header-row { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 30px; border-bottom: 2px solid #eee; padding-bottom: 20px; }
 .header-row h1 { margin: 0; font-size: 2rem; color: #8e44ad; }
+.header-row p { color: #ffffff; }
 .btn-back { background: #ecf0f1; border: none; padding: 10px 20px; border-radius: 8px; cursor: pointer; font-weight: bold; color: #7f8c8d; }
 .btn-back:hover { background: #bdc3c7; color: white; }
 .error-box { background: #fdedec; color: #c0392b; padding: 20px; border-radius: 8px; border: 1px solid #e74c3c; text-align: center; font-weight: bold; }
