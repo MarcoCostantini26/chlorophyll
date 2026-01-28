@@ -8,11 +8,11 @@ import 'leaflet.markercluster';
 import 'leaflet.heat';
 
 const props = defineProps(['trees', 'user']);
-// AGGIUNTO 'city-changed'
 const emit = defineEmits(['water-action', 'adopt-action', 'city-changed']);
 
 const mapContainer = ref(null);
 const showHeatmap = ref(false);
+let resizeObserver = null;
 
 const cities = [
   { name: 'Bologna', coords: [44.4949, 11.3426] },
@@ -28,28 +28,22 @@ let markersMap = {};
 
 const changeCity = (event) => {
   const coords = event.target.value.split(',').map(Number);
-  
-  // FIX METEO: Trova la città e avvisa la dashboard
   const selectedCity = cities.find(c => c.coords[0] === coords[0] && c.coords[1] === coords[1]);
   
-  if (map) map.flyTo(coords, 13, { duration: 1.5 });
-  
-  // Emette l'evento che aggiorna il meteo
+  // FIX MOBILE: Zoom out leggero su schermi piccoli per vedere meglio l'area
+  const isMobile = window.innerWidth < 768;
+  const zoomLevel = isMobile ? 11 : 13; 
+
+  if (map) map.flyTo(coords, zoomLevel, { duration: 1.5 });
   if (selectedCity) emit('city-changed', selectedCity);
 };
 
 // --- CONFIGURAZIONE ---
 const getPlantConfig = (category) => {
   const cat = category || 'tree';
-  if (['hedge', 'bush'].includes(cat)) {
-    return { actionLabel: '✂️ Pota', statusLabel: 'Ordine', emoji: cat === 'hedge' ? '✂️' : '🌾', typeLabel: cat === 'hedge' ? 'Siepe' : 'Cespuglio', barColorLow: '#d35400', barColorHigh: '#27ae60' };
-  }
-  if (cat === 'potted') {
-    return { actionLabel: '🍂 Concima', statusLabel: 'Terreno', emoji: '🏺', typeLabel: 'Fioriera', barColorLow: '#8e44ad', barColorHigh: '#9b59b6' };
-  }
-  if (cat === 'succulent') {
-    return { actionLabel: '🧹 Pulisci', statusLabel: 'Igiene', emoji: '🌵', typeLabel: 'Pianta Grassa', barColorLow: '#7f8c8d', barColorHigh: '#1abc9c' };
-  }
+  if (['hedge', 'bush'].includes(cat)) return { actionLabel: '✂️ Pota', statusLabel: 'Ordine', emoji: cat === 'hedge' ? '✂️' : '🌾', typeLabel: cat === 'hedge' ? 'Siepe' : 'Cespuglio', barColorLow: '#d35400', barColorHigh: '#27ae60' };
+  if (cat === 'potted') return { actionLabel: '🍂 Concima', statusLabel: 'Terreno', emoji: '🏺', typeLabel: 'Fioriera', barColorLow: '#8e44ad', barColorHigh: '#9b59b6' };
+  if (cat === 'succulent') return { actionLabel: '🧹 Pulisci', statusLabel: 'Igiene', emoji: '🌵', typeLabel: 'Pianta Grassa', barColorLow: '#7f8c8d', barColorHigh: '#1abc9c' };
   const labels = { tree: { label: 'Albero', emoji: '🌲' }, flowerbed: { label: 'Aiuola', emoji: '🌻' }, vertical_garden: { label: 'Giardino Vert.', emoji: '🧱' } };
   const info = labels[cat] || labels['tree'];
   return { actionLabel: '💧 Innaffia', statusLabel: 'Acqua', emoji: info.emoji, typeLabel: info.label, barColorLow: '#e74c3c', barColorHigh: '#3498db' };
@@ -69,19 +63,11 @@ const getIcon = (tree) => {
       box-shadow: 0 2px 5px rgba(0,0,0,0.3);
       display: flex; align-items: center; justify-content: center;
       font-size: 16px;
-      transition: background-color 0.3s ease;
     ">
       ${config.emoji}
     </div>
   `;
-
-  return L.divIcon({
-    className: 'custom-pin',
-    html: html,
-    iconSize: [34, 34],
-    iconAnchor: [17, 17],
-    popupAnchor: [0, -17]
-  });
+  return L.divIcon({ className: 'custom-pin', html: html, iconSize: [34, 34], iconAnchor: [17, 17], popupAnchor: [0, -17] });
 };
 
 const createClusterIcon = (cluster) => {
@@ -104,17 +90,12 @@ const createPopupContent = (tree) => {
   const barColor = tree.waterLevel < 30 ? config.barColorLow : config.barColorHigh;
   const headerColor = tree.status === 'healthy' ? '#2ecc71' : tree.status === 'thirsty' ? '#f1c40f' : '#e74c3c';
 
-  let actionsHTML = '';
-  if (isGuest) {
-    actionsHTML = `<div class="guest-msg" style="color: #7f8c8d; font-style: italic; margin-top: 10px; font-size: 0.8rem;">👁️ Solo Visualizzazione</div>`;
-  } else {
-    actionsHTML = `
+  let actionsHTML = isGuest ? `<div class="guest-msg" style="color: #7f8c8d; font-style: italic; margin-top: 10px; font-size: 0.8rem;">👁️ Solo Visualizzazione</div>` : `
         <div class="actions">
            <button onclick="event.stopPropagation(); window.triggerWater('${tree._id}')" ${tree.waterLevel >= 100 ? 'disabled' : ''} class="btn-action">${config.actionLabel}</button>
            <button onclick="event.stopPropagation(); window.triggerAdopt('${tree._id}')" class="btn-adopt ${isAdopted ? 'adopted' : ''}">${isAdopted ? '❤️ Tuo' : '🤍 Adotta'}</button>
         </div>
     `;
-  }
 
   return `
     <div class="popup-custom">
@@ -135,9 +116,7 @@ const flyToTree = (tree) => {
   const marker = markersMap[tree._id];
   if (marker) {
     if (showHeatmap.value) showHeatmap.value = false;
-    markersLayer.zoomToShowLayer(marker, () => {
-      marker.openPopup();
-    });
+    markersLayer.zoomToShowLayer(marker, () => { marker.openPopup(); });
   }
 };
 defineExpose({ flyToTree });
@@ -147,23 +126,16 @@ const renderMap = () => {
   
   if (showHeatmap.value) {
     if (map.hasLayer(markersLayer)) map.removeLayer(markersLayer);
-    heatLayers.forEach(l => map.removeLayer(l)); 
-    heatLayers = [];
-
-    const healthyPoints = [];
-    const thirstyPoints = [];
-    const criticalPoints = [];
-
+    heatLayers.forEach(l => map.removeLayer(l)); heatLayers = [];
+    const healthyPoints = [], thirstyPoints = [], criticalPoints = [];
     props.trees.forEach(t => {
       if(t.location && t.location.lat) {
-          const lat = Number(t.location.lat);
-          const lng = Number(t.location.lng);
+          const lat = Number(t.location.lat), lng = Number(t.location.lng);
           if (t.status === 'healthy') healthyPoints.push([lat, lng, 1.2]);
           if (t.status === 'thirsty') thirstyPoints.push([lat, lng, 1.2]);
           if (t.status === 'critical') criticalPoints.push([lat, lng, 1.2]);
       }
     });
-
     const heatOpts = { radius: 60, blur: 40, minOpacity: 0.4, maxZoom: 14, max: 1.0 };
     if (healthyPoints.length) heatLayers.push(L.heatLayer(healthyPoints, { ...heatOpts, gradient: { 0.4: '#2ecc71', 1.0: '#27ae60' } }).addTo(map));
     if (thirstyPoints.length) heatLayers.push(L.heatLayer(thirstyPoints, { ...heatOpts, gradient: { 0.4: '#f1c40f', 1.0: '#f39c12' } }).addTo(map));
@@ -177,42 +149,31 @@ const renderMap = () => {
   props.trees.forEach(tree => {
     let marker = markersMap[tree._id];
     const icon = getIcon(tree);
-
+    
     if (marker) {
       marker.setIcon(icon); 
       marker.treeStatus = tree.status;
       
-      // AGGIORNAMENTO POPUP APERTO (LIVE)
+      // LOGICA LIVE AGGIORNAMENTO POPUP (RIPRISTINATA COMPLETA)
       if (marker.getPopup()?.isOpen()) {
          const el = marker.getPopup().getElement();
          if(el) {
-             // 1. Aggiorna Barra Acqua e Intestazione
              const bar = el.querySelector('.bar-fill');
              const val = el.querySelector('.val-text');
              const head = el.querySelector('.popup-header');
              const config = getPlantConfig(tree.category);
              const barColor = tree.waterLevel < 30 ? config.barColorLow : config.barColorHigh;
              
-             if(bar) {
-               bar.style.width = tree.waterLevel + '%';
-               bar.style.backgroundColor = barColor;
-             }
+             if(bar) { bar.style.width = tree.waterLevel + '%'; bar.style.backgroundColor = barColor; }
              if(val) val.innerText = Math.round(tree.waterLevel) + '%';
              if(head) head.style.backgroundColor = tree.status === 'healthy' ? '#2ecc71' : tree.status === 'thirsty' ? '#f1c40f' : '#e74c3c';
              
-             // 2. Aggiorna Bottone Azione (Water)
              const btn = el.querySelector('.btn-action');
              if(btn) {
-                 if (tree.waterLevel >= 100) { 
-                     btn.setAttribute('disabled', 'disabled'); 
-                     btn.style.background = '#bdc3c7'; 
-                 } else { 
-                     btn.removeAttribute('disabled'); 
-                     btn.style.background = null; 
-                 }
+                 if (tree.waterLevel >= 100) { btn.setAttribute('disabled', 'disabled'); btn.style.background = '#bdc3c7'; } 
+                 else { btn.removeAttribute('disabled'); btn.style.background = null; }
              }
 
-             // 3. Aggiorna Bottone Adotta
              const btnAdopt = el.querySelector('.btn-adopt');
              if (btnAdopt) {
                 const isAdopted = props.user && props.user.adoptedTrees && props.user.adoptedTrees.includes(tree._id);
@@ -237,24 +198,41 @@ const renderMap = () => {
 
 const initMap = () => {
   if (map) return;
-  map = L.map(mapContainer.value).setView(cities[0].coords, 13);
+  const isMobile = window.innerWidth < 768;
+  const initialZoom = isMobile ? 11 : 13;
+
+  map = L.map(mapContainer.value, { 
+    zoomControl: false, 
+    tap: false 
+  }).setView(cities[0].coords, initialZoom);
+  
+  L.control.zoom({ position: 'bottomright' }).addTo(map);
   L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', { attribution: '&copy; OpenStreetMap', maxZoom: 19 }).addTo(map);
   markersLayer = L.markerClusterGroup({ showCoverageOnHover: false, maxClusterRadius: 50, iconCreateFunction: createClusterIcon });
+  
+  // FIX CRUCIALE PER IL RESIZE SU MOBILE
+  resizeObserver = new ResizeObserver(() => {
+    map.invalidateSize();
+  });
+  resizeObserver.observe(mapContainer.value);
 };
 
 onMounted(() => { 
     initMap(); 
     renderMap(); 
-    // AGGANCIO GLOBALE (Fondamentale perché siamo tornati a onclick nell'HTML)
     window.triggerWater = (id) => emit('water-action', id); 
     window.triggerAdopt = (id) => emit('adopt-action', id); 
 });
 
-// WATCHERS PER REATTIVITÀ
 watch(() => props.trees, () => renderMap(), { deep: true });
 watch([showHeatmap, () => props.user], () => renderMap());
 
-onBeforeUnmount(() => { if (map) { map.remove(); map = null; } markersMap = {}; delete window.triggerWater; delete window.triggerAdopt; });
+onBeforeUnmount(() => { 
+  if (map) { map.remove(); map = null; } 
+  if (resizeObserver) resizeObserver.disconnect();
+  markersMap = {}; 
+  delete window.triggerWater; delete window.triggerAdopt; 
+});
 </script>
 
 <template>
@@ -266,7 +244,7 @@ onBeforeUnmount(() => { if (map) { map.remove(); map = null; } markersMap = {}; 
         </select>
       </div>
       <button class="toggle-heatmap-btn" :class="{ active: showHeatmap }" @click="showHeatmap = !showHeatmap">
-        {{ showHeatmap ? '📍 Mostra Piante' : '🔥 Mostra Heatmap' }}
+        {{ showHeatmap ? '📍 Piante' : '🔥 Heatmap' }}
       </button>
     </div>
     <div ref="mapContainer" class="map-container"></div>
@@ -274,24 +252,12 @@ onBeforeUnmount(() => { if (map) { map.remove(); map = null; } markersMap = {}; 
 </template>
 
 <style>
+/* CLUSTER E PIN */
 .custom-pin { background: transparent !important; border: none !important; }
-
-/* Clusters */
-.marker-cluster-small, .cluster-green { background-color: rgba(46, 204, 113, 0.6) !important; }
-.marker-cluster-small div, .cluster-green div { background-color: rgba(39, 174, 96, 0.8) !important; }
-.marker-cluster-medium, .cluster-yellow { background-color: rgba(241, 196, 15, 0.6) !important; }
-.marker-cluster-medium div, .cluster-yellow div { background-color: rgba(243, 156, 18, 0.8) !important; }
-.marker-cluster-large, .cluster-red { background-color: rgba(231, 76, 60, 0.6) !important; }
-.marker-cluster-large div, .cluster-red div { background-color: rgba(192, 57, 43, 0.8) !important; }
+.marker-cluster-small, .cluster-green { background-color: rgba(46, 204, 113, 0.6) !important; } .marker-cluster-small div, .cluster-green div { background-color: rgba(39, 174, 96, 0.8) !important; }
+.marker-cluster-medium, .cluster-yellow { background-color: rgba(241, 196, 15, 0.6) !important; } .marker-cluster-medium div, .cluster-yellow div { background-color: rgba(243, 156, 18, 0.8) !important; }
+.marker-cluster-large, .cluster-red { background-color: rgba(231, 76, 60, 0.6) !important; } .marker-cluster-large div, .cluster-red div { background-color: rgba(192, 57, 43, 0.8) !important; }
 .marker-cluster span { color: white; font-weight: bold; font-family: 'Inter', sans-serif; }
-
-.map-wrapper { position: relative; width: 100%; height: 500px; }
-.map-container { height: 100%; width: 100%; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 15px rgba(0,0,0,0.1); border: 4px solid #fff; z-index: 1; }
-.map-controls { position: absolute; top: 15px; left: 0; width: 100%; height: 0; z-index: 20; pointer-events: none; }
-.city-select-wrapper { pointer-events: auto; position: absolute; left: 50%; transform: translateX(-50%); top: 0; }
-.city-selector { background: white; border: 2px solid #2ecc71; color: #2c3e50; padding: 8px 15px; border-radius: 20px; font-weight: bold; cursor: pointer; box-shadow: 0 4px 15px rgba(0,0,0,0.3); outline: none; appearance: none; -webkit-appearance: none; padding-right: 30px; font-family: 'Inter', sans-serif; background-image: url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22292.4%22%20height%3D%22292.4%22%3E%3Cpath%20fill%3D%22%232ecc71%22%20d%3D%22M287%2069.4a17.6%2017.6%200%200%200-13-5.4H18.4c-5%200-9.3%201.8-12.9%205.4A17.6%2017.6%200%200%200%200%2082.2c0%205%201.8%209.3%205.4%2012.9l128%20127.9c3.6%203.6%207.8%205.4%2012.8%205.4s9.2-1.8%2012.8-5.4L287%2095c3.5-3.5%205.4-7.8%205.4-12.8%200-5-1.9-9.2-5.5-12.8z%22%2F%3E%3C%2Fsvg%3E"); background-repeat: no-repeat; background-position: right 10px top 50%; background-size: 10px auto; }
-.toggle-heatmap-btn { pointer-events: auto; position: absolute; right: 15px; top: 0; background: white; border: 2px solid #2c3e50; color: #2c3e50; padding: 8px 15px; border-radius: 20px; font-weight: bold; cursor: pointer; box-shadow: 0 4px 10px rgba(0,0,0,0.2); transition: all 0.3s ease; font-family: 'Inter', sans-serif; }
-.toggle-heatmap-btn.active { background: #e74c3c; color: white; border-color: #c0392b; }
 
 .leaflet-popup-content-wrapper { padding: 0 !important; overflow: hidden; border-radius: 12px !important; }
 .leaflet-popup-content { margin: 0 !important; width: 220px !important; }
@@ -309,4 +275,31 @@ onBeforeUnmount(() => { if (map) { map.remove(); map = null; } markersMap = {}; 
 .btn-action:disabled { background: #bdc3c7 !important; cursor: not-allowed; }
 .btn-adopt { background: white; border: 2px solid #e74c3c !important; color: #e74c3c; }
 .btn-adopt.adopted { background: #e74c3c; color: white; }
+
+/* LAYOUT MAPPA DESKTOP */
+.map-wrapper { position: relative; width: 100%; height: 60vh; min-height: 400px; }
+.map-container { height: 100%; width: 100%; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 15px rgba(0,0,0,0.1); border: 4px solid #fff; z-index: 1; }
+
+.map-controls { position: absolute; top: 15px; left: 0; width: 100%; height: 0; z-index: 20; pointer-events: none; }
+.city-select-wrapper { pointer-events: auto; position: absolute; left: 50%; transform: translateX(-50%); top: 0; }
+.city-selector { background: white; border: 2px solid #2ecc71; color: #2c3e50; padding: 8px 15px; border-radius: 20px; font-weight: bold; cursor: pointer; box-shadow: 0 4px 15px rgba(0,0,0,0.3); outline: none; appearance: none; padding-right: 30px; font-family: 'Inter', sans-serif; }
+.toggle-heatmap-btn { pointer-events: auto; position: absolute; right: 15px; top: 0; background: white; border: 2px solid #2c3e50; color: #2c3e50; padding: 8px 15px; border-radius: 20px; font-weight: bold; cursor: pointer; box-shadow: 0 4px 10px rgba(0,0,0,0.2); transition: all 0.3s ease; font-family: 'Inter', sans-serif; }
+.toggle-heatmap-btn.active { background: #e74c3c; color: white; border-color: #c0392b; }
+
+/* MEDIA QUERY MOBILE (IL FIX) */
+@media (max-width: 768px) {
+  /* Altezza ridotta su mobile per vedere meglio */
+  .map-wrapper { height: 45vh; min-height: 350px; }
+  .map-container { border: none; border-radius: 0; }
+  .leaflet-control-zoom { display: none; }
+  
+  /* Controlli in basso */
+  .map-controls { 
+    top: auto; bottom: 20px; height: auto; 
+    display: flex; justify-content: center; gap: 10px; padding: 0 10px; 
+  }
+  .city-select-wrapper { position: static; transform: none; flex: 1; }
+  .city-selector { width: 100%; padding: 10px; font-size: 0.9rem; }
+  .toggle-heatmap-btn { position: static; flex: 1; padding: 10px; font-size: 0.9rem; }
+}
 </style>

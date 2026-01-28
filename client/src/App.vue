@@ -22,93 +22,43 @@ const showBadgeModal = ref(false);
 const lastUnlockedBadge = ref({ name: '', desc: '' });
 const isWidgetAlive = ref(true);
 
-// --- 1. NOTIFICHE METEO ---
-const weatherAlert = ref(null); 
+// --- MENU MOBILE ---
+const isMenuOpen = ref(false);
+const toggleMenu = () => isMenuOpen.value = !isMenuOpen.value;
+const closeMenu = () => isMenuOpen.value = false;
 
+const weatherAlert = ref(null); 
 const triggerWeatherAlert = (condition) => {
   if (condition === 'rain' || condition === 'rainy') {
-    weatherAlert.value = {
-      title: 'STA PIOVENDO! 🌧️',
-      msg: 'La natura sta innaffiando le piante per te.',
-      type: 'rain'
-    };
+    weatherAlert.value = { title: 'STA PIOVENDO! 🌧️', msg: 'La natura innaffia per te.', type: 'rain' };
   } else if (condition === 'sunny') {
-    weatherAlert.value = {
-      title: 'È TORNATO IL SOLE ☀️',
-      msg: 'Il terreno inizierà ad asciugarsi.',
-      type: 'sunny'
-    };
+    weatherAlert.value = { title: 'SOLE ☀️', msg: 'Il terreno si asciuga.', type: 'sunny' };
   }
   if (weatherAlert.value) setTimeout(() => { weatherAlert.value = null; }, 6000);
 };
 
-// --- 2. NOTIFICHE CRITICHE ---
 const criticalAlert = ref(null);
 const triggerCriticalAlert = (treeName) => {
-  criticalAlert.value = {
-    title: 'S.O.S. ALBERO! 🚨',
-    msg: `Il tuo "${treeName}" è in condizioni critiche!`,
-    type: 'critical'
-  };
+  criticalAlert.value = { title: 'S.O.S. ALBERO! 🚨', msg: `Il tuo "${treeName}" è critico!`, type: 'critical' };
   setTimeout(() => { criticalAlert.value = null; }, 10000);
 };
 
-// --- LOGICA UTENTE ---
 const isUser = computed(() => currentUser.value && currentUser.value.role === 'green_guardian');
 const isAdmin = computed(() => currentUser.value && currentUser.value.role === 'city_manager');
 const isGuest = computed(() => currentUser.value && currentUser.value.role === 'guest');
 
-const handleProfileUpdate = (updatedUser) => {
-  currentUser.value = updatedUser; 
-  localStorage.setItem('user', JSON.stringify(updatedUser)); 
-};
+const handleProfileUpdate = (updatedUser) => { currentUser.value = updatedUser; localStorage.setItem('user', JSON.stringify(updatedUser)); };
+const handleLoginSuccess = async (user) => { isWidgetAlive.value = false; handleProfileUpdate(user); await nextTick(); isWidgetAlive.value = true; router.push('/'); };
+const handleGuestAccess = async () => { isWidgetAlive.value = false; const guestUser = { _id: 'guest', username: 'Public Monitor', role: 'guest', avatar: '👁️', xp: 0, level: 0, badges: [], adoptedTrees: [] }; handleProfileUpdate(guestUser); await nextTick(); isWidgetAlive.value = true; router.push('/'); };
+const handleLogout = async () => { closeMenu(); localStorage.removeItem('user'); await router.push('/login'); isWidgetAlive.value = false; currentUser.value = null; await nextTick(); isWidgetAlive.value = true; };
 
-const handleLoginSuccess = async (user) => { 
-  isWidgetAlive.value = false;
-  handleProfileUpdate(user);
-  await nextTick();
-  isWidgetAlive.value = true;
-  router.push('/');
-};
-
-const handleGuestAccess = async () => {
-  isWidgetAlive.value = false;
-  const guestUser = { _id: 'guest', username: 'Public Monitor', role: 'guest', avatar: '👁️', xp: 0, level: 0, badges: [], adoptedTrees: [] };
-  handleProfileUpdate(guestUser);
-  await nextTick();
-  isWidgetAlive.value = true;
-  router.push('/'); 
-};
-
-const handleLogout = async () => { 
-  localStorage.removeItem('user');
-  await router.push('/login'); 
-  isWidgetAlive.value = false;
-  currentUser.value = null;    
-  await nextTick();
-  isWidgetAlive.value = true;
-};
-
-const fetchTrees = async () => { 
-  try {
-    const res = await fetch('http://localhost:3000/api/trees'); 
-    trees.value = await res.json(); 
-  } catch (e) { console.error(e); }
-};
-
-const waterTree = (treeId) => { 
-  if (currentUser.value && !isGuest.value) { 
-    socket.value.emit('water_tree', { treeId, userId: currentUser.value._id }); 
-  }
-};
+const fetchTrees = async () => { try { const res = await fetch('http://localhost:3000/api/trees'); trees.value = await res.json(); } catch (e) { console.error(e); } };
+const waterTree = (treeId) => { if (currentUser.value && !isGuest.value) { socket.value.emit('water_tree', { treeId, userId: currentUser.value._id }); } };
 const forceWater = ({id, amt}) => { socket.value.emit('admin_force_water', { treeId: id, amount: amt }); };
 const toggleAdopt = async (treeId) => {
   if (!currentUser.value || isGuest.value) return;
   try {
-    const res = await fetch('http://localhost:3000/api/users/adopt', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ userId: currentUser.value._id, treeId })
-    });
+    const res = await fetch('http://localhost:3000/api/users/adopt', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ userId: currentUser.value._id, treeId }) });
     if (res.ok) handleProfileUpdate(await res.json());
   } catch (e) { console.error(e); }
 };
@@ -116,13 +66,10 @@ const toggleAdopt = async (treeId) => {
 onMounted(() => {
   const saved = localStorage.getItem('user');
   if (saved) { try { currentUser.value = JSON.parse(saved); } catch (e) { localStorage.removeItem('user'); } }
-
   fetchTrees();
   socket.value = io('http://localhost:3000'); 
-
   socket.value.on('connect', () => isConnected.value = true);
   socket.value.on('disconnect', () => isConnected.value = false);
-  
   socket.value.on('tree_updated', (t) => { 
     const idx = trees.value.findIndex(x => x._id === t._id); 
     if (idx !== -1) { 
@@ -130,22 +77,12 @@ onMounted(() => {
       const isCritical = t.status === 'critical';
       const isMine = currentUser.value && currentUser.value.adoptedTrees && currentUser.value.adoptedTrees.includes(t._id);
       if (isCritical && !wasCritical && isMine) triggerCriticalAlert(t.name);
-      trees.value[idx] = t; 
-      trees.value = [...trees.value]; 
+      trees.value[idx] = t; trees.value = [...trees.value]; 
     } 
   });
-  
   socket.value.on('trees_refresh', (all) => trees.value = all);
-  
-  socket.value.on('weather_update', (w) => { 
-    if (w !== currentWeather.value) {
-      currentWeather.value = w;
-      if (['rain', 'rainy', 'sunny'].includes(w)) triggerWeatherAlert(w);
-    }
-  });
-
+  socket.value.on('weather_update', (w) => { if (w !== currentWeather.value) { currentWeather.value = w; if (['rain', 'rainy', 'sunny'].includes(w)) triggerWeatherAlert(w); } });
   socket.value.on('weather_map_update', (map) => { weatherMap.value = map; });
-  
   socket.value.on('user_updated', (u) => { if (currentUser.value && currentUser.value._id === u._id) handleProfileUpdate(u); });
   socket.value.on('level_up', () => { showLevelUp.value = true; setTimeout(() => showLevelUp.value = false, 3000); });
   socket.value.on('badge_unlocked', (d) => { if (currentUser.value?.username === d.username) { lastUnlockedBadge.value = d.badge; showBadgeModal.value = true; setTimeout(() => showBadgeModal.value = false, 4000); } });
@@ -157,20 +94,31 @@ onMounted(() => {
     <header class="app-header" v-if="currentUser && !route.meta.hideChat">
       <div class="header-container">
         <div class="header-left">
-          <router-link to="/" class="brand-link"><h1 class="main-title">🍃 Chlorophyll</h1></router-link>
+          <router-link to="/" class="brand-link" @click="closeMenu">
+            <h1 class="main-title">🍃 Chlorophyll</h1>
+          </router-link>
           <span v-if="isGuest" class="guest-badge">👁️ SPETTATORE</span>
           <div :class="['status-pill', isConnected ? 'online' : 'offline']">{{ isConnected ? 'Online' : 'Offline' }}</div>
         </div>
-        <nav class="main-nav">
+        
+        <nav class="main-nav desktop-nav">
           <router-link to="/" class="nav-item dashboard-link">🌲 Dashboard</router-link>
-          
-          <router-link v-if="isAdmin" to="/admin/analytics" class="nav-item admin-link">🎛️ Control Room</router-link>
-          
+          <router-link v-if="isAdmin" to="/admin/analytics" class="nav-item admin-link">🎛️ Control</router-link>
           <router-link v-if="!isGuest" to="/profile" class="nav-item profile-link">👤 Profilo</router-link>
-          
           <button @click="handleLogout" class="nav-item btn-logout">Esci 🚪</button>
         </nav>
+
+        <button class="hamburger-btn" @click="toggleMenu">☰</button>
       </div>
+
+      <transition name="slide-down">
+        <nav v-if="isMenuOpen" class="mobile-nav">
+          <router-link to="/" class="mobile-link dashboard-link" @click="closeMenu">🌲 Dashboard</router-link>
+          <router-link v-if="isAdmin" to="/admin/analytics" class="mobile-link admin-link" @click="closeMenu">🎛️ Control</router-link>
+          <router-link v-if="!isGuest" to="/profile" class="mobile-link profile-link" @click="closeMenu">👤 Profilo</router-link>
+          <button @click="handleLogout" class="mobile-link btn-mobile-logout">Esci 🚪</button>
+        </nav>
+      </transition>
     </header>
 
     <main class="main-content">
@@ -205,7 +153,6 @@ onMounted(() => {
         <div class="weather-content"><h3>{{ weatherAlert.title }}</h3><p>{{ weatherAlert.msg }}</p></div>
       </div>
     </transition>
-
     <transition name="drop-in">
       <div v-if="criticalAlert" class="weather-banner critical">
         <div class="weather-icon">🚨</div>
@@ -219,61 +166,37 @@ onMounted(() => {
 </template>
 
 <style>
+/* CSS RESET */
+* { box-sizing: border-box; }
+html, body { 
+  margin: 0; padding: 0; width: 100%; max-width: 100vw; 
+  overflow-x: hidden; /* FIX ZOOM */
+  font-family: 'Inter', sans-serif; background-color: #121212; color: #ecf0f1; 
+}
+
 .app-root { display: flex; flex-direction: column; min-height: 100vh; }
-html, body { margin: 0; padding: 0; width: 100%; font-family: 'Inter', sans-serif; background-color: #121212; color: #ecf0f1; }
+
 .app-header { position: fixed; top: 0; left: 0; width: 100%; height: 70px; background: #1e1e1e; border-bottom: 2px solid #333; box-shadow: 0 4px 12px rgba(0,0,0,0.3); z-index: 1000; }
 .header-container { display: flex; justify-content: space-between; align-items: center; height: 100%; padding: 0 30px; max-width: 1400px; margin: 0 auto; }
-.main-content { padding-top: 90px; padding-bottom: 40px; flex: 1; box-sizing: border-box; }
+.main-content { padding-top: 90px; padding-bottom: 40px; flex: 1; box-sizing: border-box; width: 100%; }
 .content-wrapper { max-width: 1400px; margin: 0 auto; padding: 0 20px; }
 .header-left { display: flex; align-items: center; gap: 15px; }
+
 .brand-link { text-decoration: none; display: flex; align-items: center; transition: transform 0.2s; }
 .brand-link:hover { transform: scale(1.02); cursor: pointer; }
 .main-title { color: #2ecc71; font-size: 1.5rem; margin: 0; font-weight: 800; } 
 .status-pill { padding: 4px 10px; border-radius: 20px; font-size: 0.75rem; font-weight: bold; color: white; text-transform: uppercase; }
 .online { background: #2ecc71; } .offline { background: #e74c3c; }
+
 .main-nav { display: flex; gap: 20px; align-items: center; }
-
-/* NAV ITEM BASE */
-.nav-item { 
-  text-decoration: none; 
-  color: #bdc3c7; 
-  font-weight: 600; 
-  font-size: 0.95rem; 
-  transition: color 0.2s; 
-  background: none; 
-  border: none; 
-  font-family: inherit; 
-  cursor: pointer; 
-  display: flex; 
-  align-items: center; 
-  height: 70px; 
-  border-bottom: 3px solid transparent; 
-}
-
-/* 1. DASHBOARD (Verde) */
+.nav-item { text-decoration: none; color: #bdc3c7; font-weight: 600; font-size: 0.95rem; transition: color 0.2s; background: none; border: none; font-family: inherit; cursor: pointer; display: flex; align-items: center; height: 70px; border-bottom: 3px solid transparent; }
 .dashboard-link:hover, .dashboard-link.router-link-active { color: #2ecc71; border-bottom-color: #2ecc71; }
-
-/* 2. ADMIN (Viola) */
-.admin-link:hover, .admin-link.router-link-active { color: #9b59b6; border-bottom-color: #9b59b6; text-shadow: 0 0 10px rgba(142, 68, 173, 0.4); }
-
-/* 3. PROFILO (Blu) */
+.admin-link:hover, .admin-link.router-link-active { color: #9b59b6; border-bottom-color: #9b59b6; }
 .profile-link:hover, .profile-link.router-link-active { color: #3498db; border-bottom-color: #3498db; }
-
-/* 4. LOGOUT (Rosso) */
-.btn-logout { 
-  color: #e74c3c !important; 
-  height: auto; 
-  border: 1px solid #e74c3c; 
-  padding: 6px 14px; 
-  border-radius: 20px; 
-  font-size: 0.85rem; 
-  line-height: 1; 
-  border-bottom: 1px solid #e74c3c !important; 
-  transition: all 0.2s;
-}
+.btn-logout { color: #e74c3c !important; height: auto; border: 1px solid #e74c3c; padding: 6px 14px; border-radius: 20px; font-size: 0.85rem; line-height: 1; border-bottom: 1px solid #e74c3c !important; transition: all 0.2s; }
 .btn-logout:hover { background: #e74c3c; color: white !important; }
 
-.guest-badge { background: #3498db; color: white; padding: 4px 10px; border-radius: 4px; font-weight: bold; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.5px; }
+.guest-badge { background: #3498db; color: white; padding: 4px 10px; border-radius: 4px; font-weight: bold; font-size: 0.8rem; }
 .level-up-modal { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: #f1c40f; color: white; padding: 20px 40px; border-radius: 50px; font-size: 2rem; z-index: 3000; font-weight: 900; animation: popIn 0.5s; }
 .badge-modal { position: fixed; top: 30%; left: 50%; transform: translate(-50%, -50%); background: #2c3e50; border: 4px solid #f1c40f; color: white; padding: 30px; text-align: center; border-radius: 20px; z-index: 4000; animation: popIn 0.5s; min-width: 300px; }
 .badge-modal .badge-icon { font-size: 5rem; margin-bottom: 15px; display: block; }
@@ -283,9 +206,28 @@ html, body { margin: 0; padding: 0; width: 100%; font-family: 'Inter', sans-seri
 .weather-banner.sunny { background: linear-gradient(90deg, #f39c12 0%, #f1c40f 100%); color: #2c3e50; }
 .weather-banner.critical { background: linear-gradient(90deg, #c0392b 0%, #e74c3c 100%); animation: pulse-border 1.5s infinite; border-color: rgba(255, 255, 255, 0.5); }
 .weather-icon { font-size: 2rem; }
-.weather-content h3 { margin: 0; font-size: 1.1rem; font-weight: 800; text-transform: uppercase; }
-.weather-content p { margin: 2px 0 0 0; font-size: 0.9rem; font-weight: 500; }
+.weather-content h3 { margin: 0; font-size: 1.1rem; }
+.weather-content p { margin: 2px 0 0 0; font-size: 0.9rem; }
 @keyframes pulse-border { 0% { box-shadow: 0 0 0 0 rgba(231, 76, 60, 0.7); transform: translateX(-50%) scale(1); } 50% { box-shadow: 0 0 20px 5px rgba(231, 76, 60, 0.4); transform: translateX(-50%) scale(1.02); } 100% { box-shadow: 0 0 0 0 rgba(231, 76, 60, 0); transform: translateX(-50%) scale(1); } }
 .drop-in-enter-active, .drop-in-leave-active { transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
 .drop-in-enter-from, .drop-in-leave-to { transform: translate(-50%, -80px); opacity: 0; }
+
+.hamburger-btn { display: none; }
+.mobile-nav { display: none; }
+
+@media (max-width: 768px) {
+  .desktop-nav, .status-pill { display: none; }
+  .header-container { padding: 0 15px; }
+  .main-title { font-size: 1.2rem; }
+  .hamburger-btn { display: block; background: none; border: none; font-size: 2rem; color: #ecf0f1; cursor: pointer; }
+  .mobile-nav { display: flex; flex-direction: column; position: absolute; top: 70px; left: 0; width: 100%; background: #2c3e50; border-bottom: 2px solid #2ecc71; box-shadow: 0 5px 15px rgba(0,0,0,0.5); z-index: 2000; }
+  .mobile-link { text-decoration: none; color: white; padding: 15px 20px; font-size: 1.1rem; font-weight: bold; border-bottom: 1px solid rgba(255,255,255,0.1); display: block; }
+  .mobile-link.dashboard-link:hover { color: #2ecc71; background: rgba(46, 204, 113, 0.1); }
+  .mobile-link.admin-link { color: #9b59b6; }
+  .mobile-link.profile-link { color: #3498db; }
+  .btn-mobile-logout { background: #e74c3c; text-align: left; border: none; cursor: pointer; color: white; }
+  .content-wrapper { padding: 0; width: 100%; }
+}
+.slide-down-enter-active, .slide-down-leave-active { transition: all 0.3s ease; max-height: 300px; opacity: 1; }
+.slide-down-enter-from, .slide-down-leave-to { max-height: 0; opacity: 0; overflow: hidden; }
 </style>
