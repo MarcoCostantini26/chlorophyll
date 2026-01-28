@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onMounted } from 'vue';
+import { ref, onMounted, computed } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 
 const route = useRoute();
@@ -51,17 +51,35 @@ const getWeatherIcon = (code, hour = new Date().getHours()) => {
   return '🌧️';
 };
 
+// --- NUOVA LOGICA COLORI DINAMICI ---
+const currentWeatherClass = computed(() => {
+  if (!currentData.value) return 'sunny'; // Default
+
+  const code = currentData.value.weathercode;
+  const isDay = currentData.value.is_day; // 1 = giorno, 0 = notte
+
+  // Pioggia / Temporale / Neve
+  if (code >= 51) return 'rainy';
+  
+  // Nuvoloso / Nebbia
+  if (code > 1 && code <= 48) return 'cloudy';
+
+  // Sereno
+  return isDay === 1 ? 'sunny' : 'night';
+});
+
 onMounted(fetchForecast);
 </script>
 
 <template>
   <div class="weather-page">
-    <div class="header">
-      <button @click="router.push('/')" class="btn-back">↩</button>
-      <div class="header-info">
-         <h1>{{ cityName }}</h1>
-         <p>📍 {{ Number(lat).toFixed(2) }}, {{ Number(lng).toFixed(2) }}</p>
+    
+    <div class="header-block">
+      <div class="header-text">
+        <h1>🌦️ {{ cityName }}</h1>
+        <p class="header-subtitle">📍 Lat: {{ Number(lat).toFixed(2) }}, Lng: {{ Number(lng).toFixed(2) }}</p>
       </div>
+      <button class="btn-back" @click="router.push('/')">↩ Dashboard</button>
     </div>
 
     <div v-if="isLoading" class="loading">
@@ -70,12 +88,14 @@ onMounted(fetchForecast);
 
     <div v-else class="forecast-container">
       
-      <div class="current-box" v-if="currentData">
+      <div class="current-box" v-if="currentData" :class="currentWeatherClass">
         <div class="current-flex">
           <div class="big-icon">{{ getWeatherIcon(currentData.weathercode, new Date().getHours()) }}</div>
           <div class="temp-group">
             <div class="big-temp">{{ Math.round(currentData.temperature) }}°</div>
-            <div class="label">Adesso</div>
+            <div class="label">
+              {{ currentWeatherClass === 'rainy' ? 'Pioggia' : (currentWeatherClass === 'cloudy' ? 'Nuvoloso' : (currentWeatherClass === 'night' ? 'Notte Serena' : 'Soleggiato')) }}
+            </div>
           </div>
         </div>
       </div>
@@ -93,9 +113,9 @@ onMounted(fetchForecast);
 </template>
 
 <style scoped>
-/* --- STILE BASE (MOBILE) --- */
+/* --- STILE BASE --- */
 .weather-page { 
-  padding: 20px 15px; /* Padding ridotto per mobile */
+  padding: 20px 15px; 
   width: 100%; 
   max-width: 100%; 
   font-family: 'Inter', sans-serif; 
@@ -103,52 +123,72 @@ onMounted(fetchForecast);
   box-sizing: border-box;
 }
 
-/* Header */
-.header { 
+/* HEADER STYLE */
+.header-block { 
+  background: linear-gradient(135deg, #3498db, #2980b9);
+  padding: 25px; 
+  border-radius: 16px; 
   display: flex; 
+  justify-content: space-between; 
   align-items: center; 
-  gap: 15px; 
   margin-bottom: 25px; 
+  box-shadow: 0 4px 15px rgba(52, 152, 219, 0.3);
 }
+.header-text h1 { margin: 0; font-size: 1.6rem; color: white; }
+.header-subtitle { margin: 5px 0 0 0; color: white; font-size: 1rem; opacity: 0.9; }
 .btn-back { 
-  background: white; 
-  border: 2px solid #ecf0f1; 
-  width: 45px; height: 45px; 
-  border-radius: 50%; 
-  font-size: 1.5rem; 
-  cursor: pointer; 
-  display: flex; align-items: center; justify-content: center;
-  color: #7f8c8d;
-  flex-shrink: 0;
-}
-.header-info h1 { font-size: 1.5rem; margin: 0; line-height: 1.2; }
-.header-info p { margin: 0; font-size: 0.8rem; color: #95a5a6; }
-
-/* Box Meteo Attuale */
-.current-box { 
-  background: linear-gradient(135deg, #3498db, #2980b9); 
+  background: rgba(255,255,255,0.2); 
+  border: 1px solid white; 
   color: white; 
-  padding: 20px; /* Meno padding */
+  padding: 8px 15px; 
+  border-radius: 8px; 
+  cursor: pointer; 
+  font-weight: bold; 
+}
+
+/* --- BOX METEO ATTUALE DINAMICO --- */
+.current-box { 
+  color: white; 
+  padding: 20px; 
   border-radius: 20px; 
   margin-bottom: 30px; 
-  box-shadow: 0 10px 25px rgba(52, 152, 219, 0.4); 
+  box-shadow: 0 10px 25px rgba(0,0,0,0.1); 
+  transition: background 0.5s ease; /* Transizione fluida */
 }
+
+/* Varianti Colore */
+.current-box.sunny {
+  background: linear-gradient(135deg, #f2994a, #f2c94c); /* Arancio/Oro */
+  box-shadow: 0 10px 25px rgba(242, 153, 74, 0.4);
+}
+.current-box.cloudy {
+  background: linear-gradient(135deg, #7f8c8d, #2c3e50); /* Grigio/Blu scuro */
+  box-shadow: 0 10px 25px rgba(44, 62, 80, 0.4);
+}
+.current-box.rainy {
+  background: linear-gradient(135deg, #373b44, #4286f4); /* Grigio scuro/Blu elettrico */
+  box-shadow: 0 10px 25px rgba(66, 134, 244, 0.4);
+}
+.current-box.night {
+  background: linear-gradient(135deg, #0f2027, #203a43, #2c5364); /* Notte Profonda */
+  box-shadow: 0 10px 25px rgba(15, 32, 39, 0.4);
+}
+
 .current-flex {
   display: flex;
   align-items: center;
   justify-content: space-around;
 }
-.big-icon { font-size: 3.5rem; }
+.big-icon { font-size: 3.5rem; filter: drop-shadow(0 2px 5px rgba(0,0,0,0.2)); }
 .temp-group { text-align: center; }
-.big-temp { font-size: 3rem; font-weight: 800; line-height: 1; }
-.label { opacity: 0.9; font-size: 0.9rem; text-transform: uppercase; letter-spacing: 1px; margin-top: 5px; }
+.big-temp { font-size: 3rem; font-weight: 800; line-height: 1; text-shadow: 0 2px 10px rgba(0,0,0,0.2); }
+.label { opacity: 0.9; font-size: 0.9rem; text-transform: uppercase; letter-spacing: 1px; margin-top: 5px; font-weight: bold; }
 
-/* Griglia Oraria Mobile First */
+/* Griglia Oraria */
 .section-title { font-size: 1rem; color: #7f8c8d; margin-bottom: 15px; text-transform: uppercase; letter-spacing: 1px; }
 
 .hourly-grid { 
   display: grid; 
-  /* Mobile: 3 colonne fisse o auto-fill stretto */
   grid-template-columns: repeat(3, 1fr); 
   gap: 10px; 
 }
@@ -168,26 +208,20 @@ onMounted(fetchForecast);
 /* Loading */
 .loading { text-align: center; color: #7f8c8d; margin-top: 50px; font-weight: bold; }
 
-/* --- MEDIA QUERY DESKTOP (Tablet & PC) --- */
-@media (min-width: 768px) {
-  .weather-page { 
-    padding: 40px; 
-    max-width: 1000px; 
-    margin: 0 auto; 
-  }
+/* --- MEDIA QUERY RESPONSIVE --- */
+@media (max-width: 768px) {
+  .header-block { flex-direction: column; text-align: center; gap: 15px; }
+}
 
-  .header h1 { font-size: 2.2rem; }
+@media (min-width: 768px) {
+  .weather-page { padding: 40px; max-width: 1000px; margin: 0 auto; }
+  .header-text h1 { font-size: 2.2rem; }
   
   .current-box { padding: 40px; }
   .big-icon { font-size: 5rem; }
   .big-temp { font-size: 4.5rem; }
 
-  .hourly-grid { 
-    /* Desktop: 6 colonne (tutte le 12 ore in 2 righe ordinate) */
-    grid-template-columns: repeat(6, 1fr); 
-    gap: 20px; 
-  }
-  
+  .hourly-grid { grid-template-columns: repeat(6, 1fr); gap: 20px; }
   .hour-card { padding: 15px; }
   .h-icon { font-size: 2rem; }
   .h-temp { font-size: 1.2rem; }
