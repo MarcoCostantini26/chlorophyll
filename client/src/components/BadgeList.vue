@@ -8,7 +8,6 @@ const allBadges = [
   { id: 'FIRST_DROP', icon: '💧', name: 'Prima Goccia', desc: 'Hai curato la tua prima pianta.', criteria: 'Effettua 1 innaffiatura.' },
   { id: 'SAVER', icon: '🚑', name: 'Soccorritore', desc: 'Hai salvato una vita vegetale.', criteria: 'Innaffia un albero con acqua < 20%.' },
   { id: 'VETERAN', icon: '🎖️', name: 'Veterano', desc: 'La costanza è la tua forza.', criteria: 'Raggiungi 20 innaffiature totali.' },
-  { id: 'NIGHT_OWL', icon: '🦉', name: 'Gufo Notturno', desc: 'La natura non dorme mai.', criteria: 'Innaffia tra le 22:00 e le 05:00.' },
   { id: 'GREEN_THUMB', icon: '🌿', name: 'Pollice Verde', desc: 'Maestro della flora.', criteria: 'Raggiungi il livello 5.' },
   { id: 'GUARDIAN', icon: '🛡️', name: 'Guardiano', desc: 'Hai adottato un albero.', criteria: 'Adotta un albero dalla dashboard.' }
 ];

@@ -130,7 +130,7 @@ const handleFocusMap = (tree) => {
       <div class="sticky-sidebar">
         <div class="sidebar-tabs">
           <button :class="{ active: sidebarTab === 'leaderboard' }" @click="sidebarTab = 'leaderboard'">🏆 Top 5</button>
-          <button :class="{ active: sidebarTab === 'myforest' }" @click="sidebarTab = 'myforest'">🌲 I Miei Alberi</button>
+          <button :class="{ active: sidebarTab === 'myforest' }" @click="sidebarTab = 'myforest'">🌲 Le mie piante</button>
         </div>
 
         <Leaderboard v-if="sidebarTab === 'leaderboard'" />

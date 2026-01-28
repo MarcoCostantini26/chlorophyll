@@ -151,11 +151,6 @@ io.on('connection', (socket) => {
             user.badges.push('SAVER');
             io.emit('badge_unlocked', { username: user.username, badge: { name: 'Soccorritore', desc: 'Hai salvato una pianta critica!' } });
           }
-          const hour = now.getHours();
-          if ((hour >= 22 || hour < 5) && !user.badges.includes('NIGHT_OWL')) {
-            user.badges.push('NIGHT_OWL');
-            io.emit('badge_unlocked', { username: user.username, badge: { name: 'Gufo Notturno', desc: 'Cura notturna effettuata.' } });
-          }
           const actionCount = await ActionLog.countDocuments({ user: userId, actionType: 'water' });
           if (actionCount >= 20 && !user.badges.includes('VETERAN')) {
             user.badges.push('VETERAN');

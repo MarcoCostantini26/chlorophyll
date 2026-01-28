@@ -45,18 +45,12 @@ const getPlantConfig = (category) => {
     tooltip: 'Innaffia'
   };
 };
-
-const getStatusEmoji = (status) => {
-  if (status === 'healthy') return '😊';
-  if (status === 'thirsty') return '😟';
-  return '💀';
-};
 </script>
 
 <template>
   <div class="my-forest-panel">
     <div class="header">
-      <h3>🌲 La Mia Foresta</h3>
+      <h3>🌲 Lista piante</h3>
       <span class="count">{{ myTrees.length }} Piante</span>
     </div>
 
@@ -76,7 +70,6 @@ const getStatusEmoji = (status) => {
           <div class="text-data">
             <div class="name-row">
               <strong>{{ tree.name }}</strong>
-              <span class="status-mini">{{ getStatusEmoji(tree.status) }}</span>
             </div>
             
             <div class="mini-bar">

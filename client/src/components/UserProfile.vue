@@ -54,8 +54,7 @@ const avatars = ['👤', '👨‍🌾', '👩‍🌾', '🦊', '🐻', '🐝', '
     <div class="wide-card">
       
       <div class="card-header">
-        <div class="brand-logo">🍃 Chlorophyll ID</div>
-        <span class="id-chip">#{{ user._id.slice(-6).toUpperCase() }}</span>
+        <div class="brand-logo">🍃 Chlorophyll</div>
       </div>
 
       <div v-if="isEditing" class="edit-mode-content">

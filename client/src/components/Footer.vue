@@ -9,7 +9,7 @@ const currentYear = new Date().getFullYear();
       <div class="footer-left">
         <h3>🍃 Chlorophyll</h3>
         <span class="separator">|</span>
-        <p>Made with ❤️ & 🌿 for the planet.</p>
+        <p>Proteggere il verde urbano significa proteggere il futuro di chi vive la città.</p>
       </div>
 
       <div class="footer-right">

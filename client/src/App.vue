@@ -102,10 +102,10 @@ onMounted(() => {
         </div>
         
         <nav class="main-nav desktop-nav">
-          <router-link to="/" class="nav-item dashboard-link">🌲 Dashboard</router-link>
-          <router-link v-if="isAdmin" to="/admin/analytics" class="nav-item admin-link">🎛️ Control</router-link>
+          <router-link to="/" class="nav-item dashboard-link">🌲 Home Page</router-link>
+          <router-link v-if="isAdmin" to="/admin/analytics" class="nav-item admin-link">🎛️ Control Room</router-link>
           <router-link v-if="!isGuest" to="/profile" class="nav-item profile-link">👤 Profilo</router-link>
-          <button @click="handleLogout" class="nav-item btn-logout">Esci 🚪</button>
+          <button @click="handleLogout" class="nav-item btn-logout">Esci</button>
         </nav>
 
         <button class="hamburger-btn" @click="toggleMenu">☰</button>
@@ -113,8 +113,8 @@ onMounted(() => {
 
       <transition name="slide-down">
         <nav v-if="isMenuOpen" class="mobile-nav">
-          <router-link to="/" class="mobile-link dashboard-link" @click="closeMenu">🌲 Dashboard</router-link>
-          <router-link v-if="isAdmin" to="/admin/analytics" class="mobile-link admin-link" @click="closeMenu">🎛️ Control</router-link>
+          <router-link to="/" class="mobile-link dashboard-link" @click="closeMenu">🌲 Home Page</router-link>
+          <router-link v-if="isAdmin" to="/admin/analytics" class="mobile-link admin-link" @click="closeMenu">🎛️ Control Room</router-link>
           <router-link v-if="!isGuest" to="/profile" class="mobile-link profile-link" @click="closeMenu">👤 Profilo</router-link>
           <button @click="handleLogout" class="mobile-link btn-mobile-logout">Esci 🚪</button>
         </nav>

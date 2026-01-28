@@ -101,7 +101,7 @@ const sendMessage = async () => {
     </div>
     
     <button v-else @click="isOpen = true" class="chat-btn">
-      💬 Chat Piante
+      💬 Dr. Chlorophyll
     </button>
   </div>
 </template>

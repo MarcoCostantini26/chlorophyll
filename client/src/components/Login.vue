@@ -19,9 +19,9 @@ const handleLogin = async () => {
 
     if (res.ok) {
       const user = await res.json();
-      emit('login-success', user); // Passa l'utente al genitore
+      emit('login-success', user);
     } else {
-      error.value = "Utente non trovato. Prova 'Marco' o 'CityManager'.";
+      error.value = "Utente non trovato.";
     }
   } catch (e) {
     error.value = "Errore di connessione.";
@@ -51,7 +51,7 @@ const handleLogin = async () => {
       <div class="divider">oppure</div>
 
       <button @click="$emit('guest-access')" class="btn-secondary">
-        👀 Entra come Public Monitor (Ospite)
+        Entra come Public Monitor (Ospite)
       </button>
     </div>
   </div>
