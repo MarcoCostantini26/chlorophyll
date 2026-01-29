@@ -1,14 +1,11 @@
-const Tree = require('./models/Tree');
-
-// INTERVALLO: 10 MINUTI
-const TICK_RATE = 600000; 
+// 👇 NOTA: Percorso aggiornato per salire di un livello verso models
+const Tree = require('../models/Tree');
+const { TICK_RATE } = require('../config/constants');
 
 // COORDINATE DI DEFAULT
 const DEFAULT_CITY = { lat: 44.4949, lng: 11.3426 }; // Bologna
 
-// --- MEMORIA GLOBALE DEL METEO ---
 let currentMap = {}; 
-// ---------------------------------
 
 const calculateStatus = (level) => {
   if (level >= 60) return 'healthy';
@@ -31,7 +28,6 @@ const CHANGE_AMOUNT = {
   sunny: -1,  cloudy: -1, rainy: +3   
 };
 
-// Pausa per API
 const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
 const fetchCityName = async (lat, lng) => {
@@ -53,7 +49,6 @@ const fillMissingHistoryOnStart = async () => {
   try {
     const allTreesIds = await Tree.find({}, '_id'); 
     const now = new Date();
-    let totalPointsAdded = 0;
 
     for (const doc of allTreesIds) {
       const tree = await Tree.findById(doc._id);
@@ -87,7 +82,6 @@ const fillMissingHistoryOnStart = async () => {
           tree.lastWatered = now;
           if (tree.history.length > 100) tree.history = tree.history.slice(-100);
           await tree.save();
-          totalPointsAdded += pointsToCreate;
         }
       }
     }
@@ -181,7 +175,6 @@ const processGroupsWeather = async (io) => {
     io.emit('weather_map_update', cityWeatherMap);
     
     if (totalUpdates > 0) {
-      // ⚡ OTTIMIZZAZIONE: Lista leggera senza history
       const updatedTrees = await Tree.find().select('-history');
       io.emit('trees_refresh', updatedTrees);
       console.log(`🌲 Foresta: ${totalUpdates} mod. | Città: ${Object.keys(cityWeatherMap).length}`);
@@ -200,7 +193,6 @@ const startWeatherSimulation = async (io) => {
   setInterval(() => processGroupsWeather(io), TICK_RATE); 
 };
 
-// Export Completo
 const getCurrentWeather = () => 'sunny'; 
 const getLastWeatherMap = () => currentMap;
 
