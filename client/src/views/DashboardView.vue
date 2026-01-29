@@ -1,58 +1,57 @@
 <script setup>
 import { ref, computed, watch, onMounted, nextTick } from 'vue';
-import { useRoute, useRouter } from 'vue-router'; // Importa anche useRouter
+import { useRoute, useRouter } from 'vue-router';
+
+// --- IMPORTIAMO I NUOVI POTERI ---
+import { useAuthStore } from '../stores/auth';
+import { useTreeStore } from '../stores/tree';
+import { useUIStore } from '../stores/ui';
+import { useSocket } from '../composables/useSocket';
+import { api } from '../services/api';
+
 import TreeMap from '../components/TreeMap.vue';
 import MyForest from '../components/MyForest.vue';
 import Leaderboard from '../components/Leaderboard.vue';
 import BadgeList from '../components/BadgeList.vue';
 import AdminPanel from '../components/AdminPanel.vue';
 
-const props = defineProps(['user', 'trees', 'weather', 'weatherMap', 'isConnected']);
-const emit = defineEmits(['water', 'force-water', 'ask-ai', 'adopt']);
-
+// NIENTE PIÙ PROPS! 🎉
+const authStore = useAuthStore();
+const treeStore = useTreeStore();
+const uiStore = useUIStore();
+const socket = useSocket();
 const route = useRoute();
-const router = useRouter(); // Serve per modificare l'URL
+const router = useRouter();
+
 const sidebarTab = ref('leaderboard');
 const treeMapRef = ref(null);
-
 const currentCity = ref({ name: 'Bologna', coords: [44.4949, 11.3426] });
 
-// --- LOGICA ZOOM MAPPA DA PARAMETRO URL (CORRETTA) ---
+// --- LOGICA ZOOM MAPPA (Invariata) ---
 const checkFocusParam = () => {
-  // Controlla se c'è il parametro 'focus' E se gli alberi sono caricati
-  if (route.query.focus && props.trees.length > 0 && treeMapRef.value) {
+  if (route.query.focus && treeStore.trees.length > 0 && treeMapRef.value) {
     const targetId = route.query.focus;
-    const targetTree = props.trees.find(t => t._id === targetId);
+    const targetTree = treeStore.trees.find(t => t._id === targetId);
     
     if (targetTree) {
-      console.log("📍 Zoom automatico su:", targetTree.name);
       handleFocusMap(targetTree);
-
-      // 🔥 FIX: Rimuoviamo il parametro 'focus' dall'URL immediatamente
-      // Così i futuri aggiornamenti (es. innaffiare) non ricaricheranno lo zoom
       router.replace({ query: { ...route.query, focus: undefined } });
     }
   }
 };
 
-// Controlliamo quando arrivano gli alberi (es. caricamento iniziale o refresh)
-watch(() => props.trees, () => {
-  nextTick(checkFocusParam);
-}, { immediate: true });
+watch(() => treeStore.trees, () => nextTick(checkFocusParam), { immediate: true });
+onMounted(() => setTimeout(checkFocusParam, 500));
 
-// Controlliamo quando la mappa è montata
-onMounted(() => {
-  setTimeout(checkFocusParam, 500); 
-});
-// -----------------------------------------------------
-
+// --- GESTIONE ---
 const handleCityChange = (newCity) => { currentCity.value = newCity; };
 
 const localWeather = computed(() => {
-  if (!props.weatherMap || !currentCity.value.name) return props.weather || 'sunny';
-  return props.weatherMap[currentCity.value.name] || props.weather || 'sunny';
+  if (!uiStore.weatherMap || !currentCity.value.name) return uiStore.weather || 'sunny';
+  return uiStore.weatherMap[currentCity.value.name] || uiStore.weather || 'sunny';
 });
 
+// Helper Meteo UI
 const getWeatherIcon = (w) => {
   const hour = new Date().getHours();
   const isNight = hour >= 18 || hour <= 6;
@@ -60,46 +59,55 @@ const getWeatherIcon = (w) => {
   if (w === 'cloudy') return '☁️';
   return isNight ? '🌙' : '☀️';
 };
-
 const getWeatherLabel = (w) => {
   if (w === 'rain' || w === 'rainy') return 'Pioggia';
   if (w === 'cloudy') return 'Nuvoloso';
   return 'Sereno';
 };
 
-const isAdmin = computed(() => props.user?.role === 'city_manager');
-const myAdoptedTrees = computed(() => {
-  if (!props.user || !props.trees) return [];
-  const adoptedIds = props.user.adoptedTrees || [];
-  return props.trees.filter(t => adoptedIds.includes(t._id));
-});
-
 const handleFocusMap = (tree) => { 
   const mapEl = document.getElementById('map-anchor');
   if (mapEl) mapEl.scrollIntoView({ behavior: 'smooth' });
   if (treeMapRef.value) treeMapRef.value.flyToTree(tree); 
 };
+
+// --- AZIONI ---
+const handleWater = (treeId) => {
+  socket.waterTree(treeId); // Usa il composable
+};
+
+const handleAdopt = async (treeId) => {
+  if (!authStore.user || authStore.isGuest) return;
+  try {
+    const updatedUser = await api.adoptTree(authStore.user._id, treeId);
+    authStore.setUser(updatedUser); // Aggiorna lo store utente
+    // Aggiorniamo anche gli alberi per vedere subito il cambio (opzionale se il socket è veloce)
+    await treeStore.fetchTrees(); 
+  } catch (e) {
+    console.error("Errore adozione", e);
+  }
+};
 </script>
 
 <template>
-  <div class="main-layout">
+  <div class="main-layout" v-if="authStore.user">
     
     <div class="content-column">
       
       <div class="section-block top-row-grid mobile-pad">
         <div class="info-stack">
-          <div class="dashboard-card user-card clickable" @click="$router.push('/profile')" title="Vai al profilo">
+          <div v-if="!authStore.isGuest" class="dashboard-card user-card clickable" @click="$router.push('/profile')" title="Vai al profilo">
             <div class="user-flex">
-              <div class="user-avatar">{{ user.avatar || '👤' }}</div>
+              <div class="user-avatar">{{ authStore.user.avatar || '👤' }}</div>
               <div class="user-details">
-                <h2>{{ user.username }}</h2>
-                <span class="role-badge" :class="user.role">{{ user.role.replace('_', ' ') }}</span>
+                <h2>{{ authStore.user.username }}</h2>
+                <span class="role-badge" :class="authStore.user.role">{{ authStore.user.role.replace('_', ' ') }}</span>
               </div>
               <div class="edit-hint">✏️</div>
             </div>
-            <div v-if="user.role !== 'public_monitor'" class="user-xp-section">
-              <div class="xp-header"><span>Lvl <strong>{{ user.level }}</strong></span><small>{{ user.xp }} XP</small></div>
-              <div class="xp-bar"><div class="xp-fill" :style="{ width: (user.xp % 100) + '%' }"></div></div>
+            <div v-if="!authStore.isGuest" class="user-xp-section">
+              <div class="xp-header"><span>Lvl <strong>{{ authStore.user.level }}</strong></span><small>{{ authStore.user.xp }} XP</small></div>
+              <div class="xp-bar"><div class="xp-fill" :style="{ width: (authStore.user.xp % 100) + '%' }"></div></div>
             </div>
           </div>
 
@@ -107,25 +115,24 @@ const handleFocusMap = (tree) => {
             class="dashboard-card weather-card clickable" 
             :class="localWeather" 
             @click="$router.push({ path: '/weather', query: { lat: currentCity.coords[0], lng: currentCity.coords[1], name: currentCity.name } })"
-            :title="'Guarda previsioni a ' + currentCity.name"
           >
             <div class="weather-icon"><span>{{ getWeatherIcon(localWeather) }}</span></div>
             <div class="weather-info"><h3>{{ getWeatherLabel(localWeather) }}</h3><small>Meteo su {{ currentCity.name }}</small></div>
           </div>
         </div>
 
-        <div class="badges-container"><BadgeList :user="user" class="full-height-badge" /></div>
+        <div class="badges-container"><BadgeList :user="authStore.user" class="full-height-badge" /></div>
       </div>
 
-      <div v-if="isAdmin" class="section-block full-width-block mobile-pad"><AdminPanel /></div>
+      <div v-if="authStore.isAdmin" class="section-block full-width-block mobile-pad"><AdminPanel /></div>
 
       <div id="map-anchor" class="section-block full-width-block map-section">
         <TreeMap 
           ref="treeMapRef" 
-          :trees="trees" 
-          :user="user"
-          @water-action="(id) => emit('water', id)" 
-          @adopt-action="(id) => emit('adopt', id)"
+          :trees="treeStore.trees" 
+          :user="authStore.user"
+          @water-action="handleWater" 
+          @adopt-action="handleAdopt"
           @city-changed="handleCityChange"
         /> 
       </div>
@@ -140,8 +147,8 @@ const handleFocusMap = (tree) => {
         <Leaderboard v-if="sidebarTab === 'leaderboard'" />
         <MyForest 
           v-if="sidebarTab === 'myforest'" 
-          :myTrees="myAdoptedTrees"
-          @water="(id) => emit('water', id)"
+          :myTrees="treeStore.myTrees"
+          @water="handleWater"
           @focus-map="handleFocusMap"
         />
       </div>

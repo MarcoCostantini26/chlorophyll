@@ -1,31 +1,25 @@
 <script setup>
+import { useAuthStore } from '../stores/auth';
 import UserChatWidget from './UserChatWidget.vue';
 import AdminChatWidget from './AdminChatWidget.vue';
 
-const props = defineProps(['user', 'trees', 'weather']);
+const authStore = useAuthStore();
+// Nessuna prop necessaria!
 </script>
 
 <template>
   <div class="fab-manager-container">
-    <div v-if="!user"></div>
-
     <AdminChatWidget 
-      v-else-if="user.role === 'city_manager'" 
-      :key="`admin-${user._id}`"
+      v-if="authStore.isAdmin" 
+      :key="'admin'" 
     />
-
     <UserChatWidget 
-      v-else 
-      :trees="trees" 
-      :weather="weather" 
-      :key="`user-${user._id}`"
+      v-else-if="authStore.isUser" 
+      :key="'user'" 
     />
   </div>
 </template>
 
 <style scoped>
-/* Un contenitore semplice che non interferisce con il layout fisso dei figli */
-.fab-manager-container {
-  display: contents;
-}
+.fab-manager-container { display: contents; }
 </style>

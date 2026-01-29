@@ -1,8 +1,9 @@
 <script setup>
 import { ref, nextTick } from 'vue';
+import { useTreeStore } from '../stores/tree'; // <--- USIAMO LO STORE ALBERI
 
-// Riceviamo 'trees' da App.vue
-const props = defineProps(['user', 'trees']);
+// NIENTE PIÙ PROPS
+const treeStore = useTreeStore();
 
 const isOpen = ref(false);
 const isLoading = ref(false);
@@ -24,16 +25,17 @@ const sendMessage = async () => {
   isLoading.value = true;
 
   try {
-    // 1. STATISTICHE GENERALI (Come prima)
-    const allTrees = props.trees || [];
+    // 1. PRENDIAMO I DATI DALLO STORE (Reattività live!)
+    const allTrees = treeStore.trees || [];
+    
+    // Calcoli statistici (identici a prima, ma su dati store)
     const totalTrees = allTrees.length;
     const criticalList = allTrees.filter(t => t.status === 'critical');
     const thirstyList = allTrees.filter(t => t.status === 'thirsty');
     const totalWater = allTrees.reduce((sum, t) => sum + t.waterLevel, 0);
     const avgWater = totalTrees > 0 ? Math.round(totalWater / totalTrees) : 0;
 
-    // 2. GENERIAMO LA LISTA COMPLETA DEI NOMI (Nuovo!)
-    // Creiamo una stringa compatta: "Nome (Stato - Acqua%)"
+    // 2. GENERIAMO LA LISTA COMPLETA DEI NOMI
     const fullTreeList = allTrees.map(t => 
       `- ${t.name} [${t.status.toUpperCase()}, ${Math.round(t.waterLevel)}%]`
     ).join('\n');
@@ -43,7 +45,6 @@ const sendMessage = async () => {
       criticalTrees: criticalList.length,
       thirstyTrees: thirstyList.length,
       avgWater,
-      // Passiamo la lista completa all'AI
       fullTreeList: fullTreeList 
     };
 
@@ -109,6 +110,7 @@ const sendMessage = async () => {
 </template>
 
 <style scoped>
+/* STESSO STILE DI PRIMA */
 .chat-wrapper { position: fixed; bottom: 20px; right: 20px; z-index: 9999; display: flex; flex-direction: column; align-items: flex-end; font-family: 'Inter', sans-serif; }
 
 /* STILE VIOLA (Admin) */

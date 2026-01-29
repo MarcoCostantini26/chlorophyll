@@ -1,18 +1,19 @@
 <script setup>
 import { ref, onMounted, onUnmounted } from 'vue';
 import StatusChart from './StatusChart.vue';
+import { api } from '../services/api';
+
 
 const stats = ref(null);
 const logs = ref([]);
 const showModal = ref(false); 
 let intervalId = null;
 
+
 const fetchData = async () => {
   try {
-    const resStats = await fetch('http://localhost:3000/api/admin/stats');
-    if(resStats.ok) stats.value = await resStats.json();
-    const resLogs = await fetch('http://localhost:3000/api/admin/logs');
-    if(resLogs.ok) logs.value = await resLogs.json();
+    stats.value = await api.getStats();
+    logs.value = await api.getLogs();
   } catch (e) { console.error("Errore dati admin", e); }
 };
 
@@ -20,7 +21,7 @@ const requestClearLogs = () => { showModal.value = true; };
 
 const confirmClearLogs = async () => {
   try {
-    await fetch('http://localhost:3000/api/admin/logs', { method: 'DELETE' });
+    await api.clearLogs();
     logs.value = []; 
     showModal.value = false;
   } catch (e) { alert('Errore.'); }

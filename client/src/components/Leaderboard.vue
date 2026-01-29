@@ -3,10 +3,11 @@ import { ref, onMounted } from 'vue';
 
 const leaders = ref([]);
 
+
 const fetchLeaderboard = async () => {
   try {
-    const res = await fetch('http://localhost:3000/api/users/leaderboard');
-    if (res.ok) leaders.value = await res.json();
+    const res = await fetch('http://localhost:3000/api/users/leaderboard'); // O usa api.getLeaderboard se la crei
+    leaders.value = await res.json();
   } catch (e) { console.error(e); }
 };
 
