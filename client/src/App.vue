@@ -6,7 +6,6 @@ import { useUIStore } from './stores/ui';
 import { useSocket } from './composables/useSocket';
 import { useRouter } from 'vue-router';
 
-// Componenti globali
 import Footer from './components/Footer.vue';
 import AiFabManager from './components/AiFabManager.vue';
 
@@ -16,13 +15,11 @@ const uiStore = useUIStore();
 const socket = useSocket();
 const router = useRouter();
 
-// --- INIZIALIZZAZIONE ---
 onMounted(async () => {
   await treeStore.fetchTrees();
   socket.connect();
 });
 
-// --- GESTIONE MENU MOBILE ---
 const toggleMenu = () => uiStore.isMenuOpen = !uiStore.isMenuOpen;
 const closeMenu = () => uiStore.isMenuOpen = false;
 
