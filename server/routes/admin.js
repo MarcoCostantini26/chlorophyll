@@ -3,8 +3,6 @@ const router = express.Router();
 const Tree = require('../models/Tree');
 const ActionLog = require('../models/ActionLog');
 
-// 1. ENDPOINT ANALYTICS (Per la Control Room)
-// Carica i dati ottimizzati: storico tagliato agli ultimi 20 punti.
 router.get('/analytics', async (req, res) => {
   try {
     const allTrees = await Tree.find({}, {
@@ -14,7 +12,6 @@ router.get('/analytics', async (req, res) => {
       waterLevel: 1, 
       city: 1, 
       location: 1,
-      // 🔥 MAGIC TRICK: Prende solo gli ultimi 20 valori dello storico!
       history: { $slice: -20 } 
     });
 
@@ -26,7 +23,6 @@ router.get('/analytics', async (req, res) => {
     const totalWater = allTrees.reduce((sum, t) => sum + t.waterLevel, 0);
     const avgWater = totalTrees > 0 ? Math.round(totalWater / totalTrees) : 0;
 
-    // Raggruppa per Categorie
     const categories = {};
     allTrees.forEach(t => {
       const cat = t.category || 'other';
@@ -42,7 +38,7 @@ router.get('/analytics', async (req, res) => {
       healthyTrees,
       avgWater,
       categories,
-      allTrees // Manda la lista ottimizzata
+      allTrees
     });
 
   } catch (err) {
@@ -50,7 +46,6 @@ router.get('/analytics', async (req, res) => {
   }
 });
 
-// 2. STATISTICHE VELOCI (Per AdminPanel Widget)
 router.get('/stats', async (req, res) => {
   try {
     const trees = await Tree.find().select('status waterLevel');
@@ -68,7 +63,6 @@ router.get('/stats', async (req, res) => {
   }
 });
 
-// 3. LOG DI SISTEMA
 router.get('/logs', async (req, res) => {
   try {
     const logs = await ActionLog.find()

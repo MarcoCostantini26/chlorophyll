@@ -2,7 +2,6 @@ const express = require('express');
 const router = express.Router();
 const User = require('../models/User');
 
-// POST /api/users/login
 router.post('/login', async (req, res) => {
   try {
     const { username } = req.body;
@@ -12,7 +11,6 @@ router.post('/login', async (req, res) => {
   } catch (e) { res.status(500).json({ error: "Errore login" }); }
 });
 
-// GET /api/users/leaderboard
 router.get('/leaderboard', async (req, res) => {
   try {
     const topUsers = await User.find({ role: 'green_guardian' })
@@ -23,7 +21,6 @@ router.get('/leaderboard', async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-// PUT /api/users/:id (Modifica Profilo)
 router.put('/:id', async (req, res) => {
   try {
     const { id } = req.params;
@@ -47,7 +44,6 @@ router.put('/:id', async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-// POST /api/users/adopt (CON LOGICA BADGE GUARDIANO)
 router.post('/adopt', async (req, res) => {
   try {
     const { userId, treeId } = req.body;
@@ -59,13 +55,10 @@ router.post('/adopt', async (req, res) => {
     const index = user.adoptedTrees.indexOf(treeId);
     
     if (index > -1) {
-      // Rimozione adozione
       user.adoptedTrees.splice(index, 1);
     } else {
-      // Nuova Adozione
       user.adoptedTrees.push(treeId);
 
-      // BADGE: GUARDIANO
       if (!user.badges.includes('GUARDIAN')) {
         user.badges.push('GUARDIAN');
         if (req.io) {

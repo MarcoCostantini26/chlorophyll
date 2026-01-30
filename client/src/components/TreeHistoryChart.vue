@@ -16,7 +16,7 @@ const ranges = [
   { label: '1W',  hours: 24 * 7, interval: 1440, mode: 'average' }
 ];
 
-const selectedRange = ref(ranges[4]); // Default 24H
+const selectedRange = ref(ranges[4]);
 
 const getNormalizedHistory = () => {
   if (!props.tree || !props.tree.history) return [];

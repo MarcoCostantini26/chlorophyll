@@ -34,7 +34,7 @@ onUnmounted(() => { if (intervalId) clearInterval(intervalId); });
 <template>
   <div class="admin-dashboard">
     <div class="header-panel">
-      <h3>🏙️ Control Room (City Manager)</h3>
+      <h3>Control Room</h3>
       <span class="live-badge">● LIVE</span>
     </div>
 
@@ -85,7 +85,6 @@ onUnmounted(() => { if (intervalId) clearInterval(intervalId); });
 </template>
 
 <style scoped>
-/* STILI BASE (Mobile First) */
 .admin-dashboard {
   background: white; color: #2c3e50; padding: 15px; border-radius: 12px;
   border: 2px solid #8e44ad;
@@ -98,12 +97,10 @@ onUnmounted(() => { if (intervalId) clearInterval(intervalId); });
 .header-panel h3 { margin: 0; color: #8e44ad; font-weight: 800; font-size: 1rem; }
 .live-badge { border: 1px solid #e74c3c; color: #e74c3c; padding: 2px 6px; border-radius: 4px; font-size: 0.7rem; font-weight: bold; animation: blink 1s infinite; white-space: nowrap; }
 
-/* Layout Flex: Default Colonna (Mobile) */
 .dashboard-flex { display: flex; flex-direction: column; gap: 20px; }
 
 .flex-col { flex: 1; width: 100%; }
 
-/* Stats: Default Riga (Mobile) */
 .stats-numbers { display: flex; flex-direction: row; gap: 10px; width: 100%; }
 .stat-box { flex: 1; background: #f8f9fa; padding: 10px; border-radius: 8px; text-align: center; border: 1px solid #eee; }
 .stat-box .lbl { display: block; font-size: 0.7rem; color: #7f8c8d; text-transform: uppercase; font-weight: bold; }
@@ -111,11 +108,9 @@ onUnmounted(() => { if (intervalId) clearInterval(intervalId); });
 .stat-box.blue { background: #ebf5fb; border-color: #aed6f1; }
 .stat-box.blue .val { color: #3498db; }
 
-/* Chart & Logs */
 .chart-container { display: flex; justify-content: center; align-items: center; min-height: 150px; }
 .logs-container { background: #fafafa; border: 1px solid #eee; border-radius: 8px; padding: 10px; display: flex; flex-direction: column; }
 
-/* Logs Content */
 .logs-header-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
 .logs-header-row h4 { margin: 0; font-size: 0.75rem; color: #95a5a6; text-transform: uppercase; }
 .btn-trash { background: none; border: none; cursor: pointer; font-size: 1.1rem; padding: 5px; opacity: 0.6; transition: opacity 0.2s; }
@@ -130,7 +125,6 @@ li { font-size: 0.8rem; padding: 5px 0; border-bottom: 1px solid #eee; display: 
 
 @keyframes blink { 0% { opacity: 1; } 50% { opacity: 0.5; } 100% { opacity: 1; } }
 
-/* Modale */
 .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.5); display: flex; justify-content: center; align-items: center; z-index: 9999; backdrop-filter: blur(2px); }
 .modal-box { background: white; padding: 25px; border-radius: 10px; box-shadow: 0 10px 25px rgba(0,0,0,0.2); width: 90%; max-width: 300px; text-align: center; border: 1px solid #eee; animation: popIn 0.2s ease-out; }
 .modal-box h3 { margin: 0 0 10px 0; color: #333; font-size: 1.1rem; }
@@ -140,15 +134,14 @@ li { font-size: 0.8rem; padding: 5px 0; border-bottom: 1px solid #eee; display: 
 
 @keyframes popIn { from { transform: scale(0.9); opacity: 0; } to { transform: scale(1); opacity: 1; } }
 
-/* --- MEDIA QUERY DESKTOP (Tablet & PC) --- */
 @media (min-width: 768px) {
   .dashboard-flex { 
-    flex-direction: row; /* Torna orizzontale */
+    flex-direction: row;
     align-items: stretch;
   }
   
   .stats-numbers { 
-    flex-direction: column; /* Numeri verticali a sinistra */
+    flex-direction: column;
     max-width: 150px; 
     justify-content: center;
   }

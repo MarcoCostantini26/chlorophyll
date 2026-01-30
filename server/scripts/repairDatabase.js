@@ -9,7 +9,7 @@ const TICK_RATE = 600000;
 const repairHistory = async () => {
   try {
     const trees = await Tree.find();
-    console.log(`🔍 Analisi di ${trees.length} alberi...`);
+    console.log(`Analisi di ${trees.length} alberi...`);
 
     for (const tree of trees) {
       if (!tree.history || tree.history.length < 2) continue;
@@ -27,7 +27,6 @@ const repairHistory = async () => {
 
         const diffMs = new Date(nextPoint.date) - new Date(currentPoint.date);
 
-        // Se buco > 15 min, interpola
         if (diffMs > (TICK_RATE * 1.5)) {
           const missingPoints = Math.floor(diffMs / TICK_RATE);
           const stepValue = (nextPoint.val - currentPoint.val) / missingPoints;
@@ -49,7 +48,7 @@ const repairHistory = async () => {
         console.log(`🛠️ ${tree.name}: Riparati ${pointsAdded} punti.`);
       }
     }
-    console.log('🎉 Database riparato.');
+    console.log('Database riparato.');
   } catch (e) {
     console.error('Errore:', e);
   }

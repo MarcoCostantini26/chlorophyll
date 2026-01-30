@@ -30,7 +30,6 @@ const changeCity = (event) => {
   const coords = event.target.value.split(',').map(Number);
   const selectedCity = cities.find(c => c.coords[0] === coords[0] && c.coords[1] === coords[1]);
   
-  // FIX MOBILE: Zoom out leggero su schermi piccoli per vedere meglio l'area
   const isMobile = window.innerWidth < 768;
   const zoomLevel = isMobile ? 11 : 13; 
 
@@ -38,7 +37,6 @@ const changeCity = (event) => {
   if (selectedCity) emit('city-changed', selectedCity);
 };
 
-// --- CONFIGURAZIONE ---
 const getPlantConfig = (category) => {
   const cat = category || 'tree';
   if (['hedge', 'bush'].includes(cat)) return { actionLabel: '✂️ Pota', statusLabel: 'Ordine', emoji: cat === 'hedge' ? '✂️' : '🌾', typeLabel: cat === 'hedge' ? 'Siepe' : 'Cespuglio', barColorLow: '#d35400', barColorHigh: '#27ae60' };
@@ -154,7 +152,6 @@ const renderMap = () => {
       marker.setIcon(icon); 
       marker.treeStatus = tree.status;
       
-      // LOGICA LIVE AGGIORNAMENTO POPUP (RIPRISTINATA COMPLETA)
       if (marker.getPopup()?.isOpen()) {
          const el = marker.getPopup().getElement();
          if(el) {
@@ -210,7 +207,6 @@ const initMap = () => {
   L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', { attribution: '&copy; OpenStreetMap', maxZoom: 19 }).addTo(map);
   markersLayer = L.markerClusterGroup({ showCoverageOnHover: false, maxClusterRadius: 50, iconCreateFunction: createClusterIcon });
   
-  // FIX CRUCIALE PER IL RESIZE SU MOBILE
   resizeObserver = new ResizeObserver(() => {
     map.invalidateSize();
   });
@@ -252,7 +248,6 @@ onBeforeUnmount(() => {
 </template>
 
 <style>
-/* CLUSTER E PIN */
 .custom-pin { background: transparent !important; border: none !important; }
 .marker-cluster-small, .cluster-green { background-color: rgba(46, 204, 113, 0.6) !important; } .marker-cluster-small div, .cluster-green div { background-color: rgba(39, 174, 96, 0.8) !important; }
 .marker-cluster-medium, .cluster-yellow { background-color: rgba(241, 196, 15, 0.6) !important; } .marker-cluster-medium div, .cluster-yellow div { background-color: rgba(243, 156, 18, 0.8) !important; }
@@ -276,7 +271,6 @@ onBeforeUnmount(() => {
 .btn-adopt { background: white; border: 2px solid #e74c3c !important; color: #e74c3c; }
 .btn-adopt.adopted { background: #e74c3c; color: white; }
 
-/* LAYOUT MAPPA DESKTOP */
 .map-wrapper { position: relative; width: 100%; height: 60vh; min-height: 400px; }
 .map-container { height: 100%; width: 100%; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 15px rgba(0,0,0,0.1); border: 4px solid #fff; z-index: 1; }
 
@@ -286,14 +280,11 @@ onBeforeUnmount(() => {
 .toggle-heatmap-btn { pointer-events: auto; position: absolute; right: 15px; top: 0; background: white; border: 2px solid #2c3e50; color: #2c3e50; padding: 8px 15px; border-radius: 20px; font-weight: bold; cursor: pointer; box-shadow: 0 4px 10px rgba(0,0,0,0.2); transition: all 0.3s ease; font-family: 'Inter', sans-serif; }
 .toggle-heatmap-btn.active { background: #e74c3c; color: white; border-color: #c0392b; }
 
-/* MEDIA QUERY MOBILE (IL FIX) */
 @media (max-width: 768px) {
-  /* Altezza ridotta su mobile per vedere meglio */
   .map-wrapper { height: 45vh; min-height: 350px; }
   .map-container { border: none; border-radius: 0; }
   .leaflet-control-zoom { display: none; }
   
-  /* Controlli in basso */
   .map-controls { 
     top: auto; bottom: 20px; height: auto; 
     display: flex; justify-content: center; gap: 10px; padding: 0 10px; 

@@ -2,7 +2,6 @@
 import { ref, computed, watch, onMounted, nextTick } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 
-// --- IMPORTIAMO I NUOVI POTERI ---
 import { useAuthStore } from '../stores/auth';
 import { useTreeStore } from '../stores/tree';
 import { useUIStore } from '../stores/ui';
@@ -15,7 +14,6 @@ import Leaderboard from '../components/Leaderboard.vue';
 import BadgeList from '../components/BadgeList.vue';
 import AdminPanel from '../components/AdminPanel.vue';
 
-// NIENTE PIÙ PROPS! 🎉
 const authStore = useAuthStore();
 const treeStore = useTreeStore();
 const uiStore = useUIStore();
@@ -27,7 +25,6 @@ const sidebarTab = ref('leaderboard');
 const treeMapRef = ref(null);
 const currentCity = ref({ name: 'Bologna', coords: [44.4949, 11.3426] });
 
-// --- LOGICA ZOOM MAPPA (Invariata) ---
 const checkFocusParam = () => {
   if (route.query.focus && treeStore.trees.length > 0 && treeMapRef.value) {
     const targetId = route.query.focus;
@@ -43,7 +40,6 @@ const checkFocusParam = () => {
 watch(() => treeStore.trees, () => nextTick(checkFocusParam), { immediate: true });
 onMounted(() => setTimeout(checkFocusParam, 500));
 
-// --- GESTIONE ---
 const handleCityChange = (newCity) => { currentCity.value = newCity; };
 
 const localWeather = computed(() => {
@@ -51,7 +47,6 @@ const localWeather = computed(() => {
   return uiStore.weatherMap[currentCity.value.name] || uiStore.weather || 'sunny';
 });
 
-// Helper Meteo UI
 const getWeatherIcon = (w) => {
   const hour = new Date().getHours();
   const isNight = hour >= 18 || hour <= 6;
@@ -73,15 +68,14 @@ const handleFocusMap = (tree) => {
 
 // --- AZIONI ---
 const handleWater = (treeId) => {
-  socket.waterTree(treeId); // Usa il composable
+  socket.waterTree(treeId); 
 };
 
 const handleAdopt = async (treeId) => {
   if (!authStore.user || authStore.isGuest) return;
   try {
     const updatedUser = await api.adoptTree(authStore.user._id, treeId);
-    authStore.setUser(updatedUser); // Aggiorna lo store utente
-    // Aggiorniamo anche gli alberi per vedere subito il cambio (opzionale se il socket è veloce)
+    authStore.setUser(updatedUser); 
     await treeStore.fetchTrees(); 
   } catch (e) {
     console.error("Errore adozione", e);
@@ -158,7 +152,6 @@ const handleAdopt = async (treeId) => {
 </template>
 
 <style scoped>
-/* CSS ORIGINALE DASHBOARD (Invariato) */
 .main-layout { display: grid; grid-template-columns: 1fr 350px; gap: 30px; align-items: stretch; position: relative; }
 .content-column { display: flex; flex-direction: column; gap: 30px; width: 100%; min-width: 0; }
 .sidebar-column { width: 100%; height: 100%; }

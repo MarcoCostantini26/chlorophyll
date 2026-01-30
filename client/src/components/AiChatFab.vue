@@ -1,7 +1,6 @@
 <script setup>
 import { ref, nextTick } from 'vue';
 
-// 1. RICEVIAMO I DATI DAL PADRE (APP.VUE)
 const props = defineProps(['trees', 'weather']);
 
 const isOpen = ref(false);
@@ -38,8 +37,6 @@ const sendMessage = async () => {
       content: m.text
     }));
 
-    // 2. PREPARIAMO IL CONTESTO DA INVIARE ALL'AI
-    // Inviamo solo i dati essenziali per non appesantire la richiesta
     const contextData = {
       weather: props.weather,
       trees: props.trees.map(t => ({
@@ -50,14 +47,13 @@ const sendMessage = async () => {
       }))
     };
 
-    // 3. CHIAMATA SERVER
     const res = await fetch('http://localhost:3000/api/ai/chat', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ 
         message: text, 
         history,
-        context: contextData // <--- NUOVO CAMPO
+        context: contextData
       })
     });
 
@@ -65,7 +61,7 @@ const sendMessage = async () => {
     messages.value.push({ role: 'assistant', text: data.message });
   } catch (e) {
     console.error(e);
-    messages.value.push({ role: 'assistant', text: "😵‍💫 Ho un po' di nebbia nei circuiti. Riprova più tardi." });
+    messages.value.push({ role: 'assistant', text: "Ho un po' di nebbia nei circuiti. Riprova più tardi." });
   } finally {
     isLoading.value = false;
     scrollToBottom();

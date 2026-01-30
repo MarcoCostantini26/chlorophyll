@@ -21,19 +21,17 @@ const currentYear = new Date().getFullYear();
 </template>
 
 <style scoped>
-/* 1. SFONDO FULL WIDTH */
 .app-footer {
   width: 100%;
   background-color: #1e1e1e;
   border-top: 3px solid #2ecc71;
   color: #95a5a6;
   font-family: 'Inter', sans-serif;
-  margin-top: auto; /* Spinge in basso se usato con flexbox */
+  margin-top: auto;
 }
 
-/* 2. CONTENUTO CENTRATO MA SFONDO ESTESO */
 .footer-inner {
-  max-width: 1400px; /* Stessa larghezza dell'header */
+  max-width: 1400px; 
   margin: 0 auto;
   padding: 15px 30px;
   display: flex;

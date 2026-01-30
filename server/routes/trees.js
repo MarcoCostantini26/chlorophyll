@@ -2,8 +2,6 @@ const express = require('express');
 const router = express.Router();
 const Tree = require('../models/Tree');
 
-// GET ALL TREES (Per Dashboard e Mappa)
-// Velocissimo: Scarica 0 storico.
 router.get('/', async (req, res) => {
   try {
     const trees = await Tree.find().select('-history'); 
@@ -13,8 +11,6 @@ router.get('/', async (req, res) => {
   }
 });
 
-// GET SINGLE TREE (Per Dettaglio Albero)
-// Completo: Scarica tutto lo storico per i grafici grandi.
 router.get('/:id', async (req, res) => {
   try {
     const tree = await Tree.findById(req.params.id);
@@ -25,7 +21,6 @@ router.get('/:id', async (req, res) => {
   }
 });
 
-// CREATE TREE
 router.post('/', async (req, res) => {
   const tree = new Tree({
     name: req.body.name,
@@ -36,7 +31,6 @@ router.post('/', async (req, res) => {
 
   try {
     const newTree = await tree.save();
-    // Aggiorna tutti con lista leggera
     req.io.emit('trees_refresh', await Tree.find().select('-history'));
     res.status(201).json(newTree);
   } catch (err) {
@@ -44,7 +38,6 @@ router.post('/', async (req, res) => {
   }
 });
 
-// DELETE TREE
 router.delete('/:id', async (req, res) => {
   try {
     await Tree.findByIdAndDelete(req.params.id);

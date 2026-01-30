@@ -1,7 +1,7 @@
 <script setup>
 import { ref, onMounted, computed } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import { api } from '../services/api'; // Importiamo la nostra API centralizzata
+import { api } from '../services/api';
 
 const route = useRoute();
 const router = useRouter();
@@ -16,12 +16,10 @@ const cityName = route.query.name || 'Bologna';
 
 const fetchForecast = async () => {
   try {
-    // Usiamo il nuovo service
     const data = await api.getForecast(lat, lng);
     
     currentData.value = data.current_weather;
 
-    // Logica Rolling Window (identica a prima)
     const now = new Date();
     now.setMinutes(0, 0, 0); 
     const allHours = data.hourly.time.map((timeStr, i) => ({
@@ -95,8 +93,6 @@ onMounted(fetchForecast);
 </template>
 
 <style scoped>
-/* Copia lo stile originale di WeatherView.vue qui */
-/* ... (Sei un esperto ormai, sai che devo risparmiare spazio, ma va incollato tutto) ... */
 .weather-page { padding: 20px 15px; width: 100%; max-width: 100%; font-family: 'Inter', sans-serif; color: #2c3e50; box-sizing: border-box; }
 .header-block { background: linear-gradient(135deg, #3498db, #2980b9); padding: 25px; border-radius: 16px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 25px; box-shadow: 0 4px 15px rgba(52, 152, 219, 0.3); }
 .header-text h1 { margin: 0; font-size: 1.6rem; color: white; }

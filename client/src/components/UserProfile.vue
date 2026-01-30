@@ -137,7 +137,6 @@ const handleLogout = () => {
 </template>
 
 <style scoped>
-/* BASE (Mobile First) */
 .profile-wide-wrapper { display: flex; justify-content: center; align-items: flex-start; min-height: 80vh; padding: 20px 15px; color: #ecf0f1; }
 .wide-card { width: 100%; max-width: 850px; background: #1e1e1e; border-radius: 20px; padding: 25px; border: 1px solid #333; box-shadow: 0 10px 30px rgba(0,0,0,0.4); position: relative; overflow: hidden; }
 .wide-card::before { content: ''; position: absolute; top:0; left:0; width: 6px; height: 100%; background: linear-gradient(180deg, #2ecc71, #f1c40f); }
@@ -145,7 +144,6 @@ const handleLogout = () => {
 .brand-logo { font-weight: 800; text-transform: uppercase; letter-spacing: 1px; color: #2ecc71; font-size: 0.9rem; }
 .btn-back-mobile { display: none; background: none; border: none; color: #7f8c8d; font-size: 1.5rem; cursor: pointer; }
 
-/* Visualizzazione */
 .view-mode-content { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 30px; }
 .left-section { position: relative; text-align: center; min-width: 160px; flex-shrink: 0; }
 .avatar-big { width: 140px; height: 140px; background: #2c3e50; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 4rem; border: 4px solid #1e1e1e; box-shadow: 0 10px 30px rgba(0,0,0,0.3); margin: 0 auto; }
@@ -159,7 +157,6 @@ const handleLogout = () => {
 .btn-action.edit { background: #333; color: white; border: 1px solid #444; }
 .btn-action.logout { background: transparent; color: #e74c3c; border: 1px solid #e74c3c; }
 
-/* Stats */
 .xp-module { background: rgba(0,0,0,0.2); padding: 15px; border-radius: 12px; border: 1px solid #333; text-align: left; }
 .xp-info { display: flex; justify-content: space-between; margin-bottom: 8px; font-size: 0.85rem; color: #aaa; }
 .progress-bg { height: 10px; background: #121212; border-radius: 5px; overflow: hidden; }
@@ -172,7 +169,6 @@ const handleLogout = () => {
 .stat-text strong { font-size: 1.2rem; color: white; line-height: 1; }
 .stat-text small { color: #7f8c8d; text-transform: uppercase; font-weight: bold; font-size: 0.7rem; }
 
-/* EDIT MODE - STILE INPUT */
 .edit-mode-content h3 { color: #f1c40f; margin-top: 0; }
 .edit-container { display: flex; flex-direction: column; gap: 20px; }
 .input-label { display: block; color: #aaa; margin-bottom: 8px; font-size: 0.9rem; }
@@ -183,12 +179,10 @@ const handleLogout = () => {
 .avatars-grid button { font-size: 1.5rem; background: #252525; border: 2px solid transparent; border-radius: 8px; padding: 8px; cursor: pointer; transition: all 0.2s; }
 .avatars-grid button.active { border-color: #2ecc71; background: rgba(46, 204, 113, 0.15); transform: scale(1.05); }
 
-/* BOTTONI CONFERMA/ANNULLA (DEFAULT MOBILE: Grandi e affiancati) */
 .actions-row { display: flex; gap: 10px; margin-top: 20px; }
 .btn-save { padding: 14px; background: #2ecc71; border: none; border-radius: 8px; font-weight: bold; cursor: pointer; color: white; flex: 1; font-size: 1rem; }
 .btn-cancel { padding: 14px; background: transparent; border: 2px solid #555; border-radius: 8px; font-weight: bold; cursor: pointer; color: #ccc; flex: 1; font-size: 1rem; }
 
-/* --- DESKTOP TWEAKS --- */
 @media (max-width: 768px) { .btn-back-mobile { display: block; } }
 
 @media (min-width: 768px) {
@@ -205,15 +199,14 @@ const handleLogout = () => {
   .avatars-grid { grid-template-columns: repeat(8, 1fr); gap: 15px; }
   .avatar-big { width: 160px; height: 160px; font-size: 5rem; }
 
-  /* FIX PULSANTI DESKTOP: Più piccoli e compatti */
   .actions-row { 
-    justify-content: flex-start; /* Allinea a sinistra */
+    justify-content: flex-start;
     gap: 15px; 
   }
   .btn-save, .btn-cancel {
-    flex: 0 0 auto; /* NON espanderti */
-    width: auto;    /* Larghezza in base al testo */
-    padding: 8px 30px; /* Padding ridotto */
+    flex: 0 0 auto;
+    width: auto;
+    padding: 8px 30px;
     font-size: 0.95rem;
     min-width: 120px;
   }

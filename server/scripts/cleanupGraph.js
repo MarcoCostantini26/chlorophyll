@@ -1,7 +1,6 @@
-require('dotenv').config({ path: '../.env' }); // Carica .env dalla root (opzionale se lanci dalla root)
+require('dotenv').config({ path: '../.env' });
 const mongoose = require('mongoose');
 
-// 👇 MODIFICA QUI: Percorso aggiornato (sali di un livello con ../)
 const Tree = require('../models/Tree'); 
 
 const MONGO_URI = process.env.MONGO_URI;
@@ -20,10 +19,8 @@ const cleanupHistory = async () => {
 
       const originalLength = tree.history.length;
       
-      // 1. Ordina per data
       tree.history.sort((a, b) => new Date(a.date) - new Date(b.date));
 
-      // 2. Mappa per rimuovere duplicati nello stesso minuto
       const uniqueHistoryMap = new Map();
 
       tree.history.forEach(entry => {
@@ -43,10 +40,10 @@ const cleanupHistory = async () => {
       }
     }
 
-    console.log(`✅ COMPLETATO! Totale rimossi: ${totalRemoved}`);
+    console.log(`COMPLETATO! Totale rimossi: ${totalRemoved}`);
 
   } catch (error) {
-    console.error("❌ Errore:", error);
+    console.error("Errore:", error);
   } finally {
     mongoose.connection.close();
     process.exit();

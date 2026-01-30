@@ -5,7 +5,6 @@ const Tree = require('../models/Tree');
 const DB_PASSWORD = 'chlorophyll'; 
 const MONGO_URI = `mongodb+srv://admin:${DB_PASSWORD}@cluster0.xscku4p.mongodb.net/chlorophyll?appName=Cluster0`;
 
-// --- NUOVE CITTÀ (Bologna, Cesena, Milano, Torino) ---
 const CITIES = [
   { name: 'Bologna', lat: 44.4949, lng: 11.3426 },
   { name: 'Cesena', lat: 44.1396, lng: 12.2432 },
@@ -13,7 +12,6 @@ const CITIES = [
   { name: 'Torino', lat: 45.0703, lng: 7.6869 }
 ];
 
-// Funzione Random Position
 const getRandomPos = (baseLat, baseLng, latSpread = 0.015, lngSpread = 0.025) => {
   return {
     lat: baseLat + (Math.random() - 0.5) * latSpread,
@@ -23,7 +21,6 @@ const getRandomPos = (baseLat, baseLng, latSpread = 0.015, lngSpread = 0.025) =>
 
 const pickName = (list, index) => list[index % list.length];
 
-// Nomi creativi
 const treeNames = ["Quercia Maestosa", "Il Grande Platano", "Tiglio del Nonno", "Acero Rosso", "Ginkgo Biloba"];
 const flowerNames = ["Angolo di Tulipani", "Letto di Rose", "Fiori di Campo", "Margherite Selvagge"];
 const hedgeNames = ["Muro Verde", "Labirinto di Bosso", "Siepe Geometrica"];
@@ -39,7 +36,6 @@ const seedDB = async () => {
     console.log('🧹 Pulizia totale foresta...');
     await Tree.deleteMany({}); 
 
-    // Reset Utenti
     const usersCheck = [
         { u: 'CityManager', e: 'admin@city.it', r: 'city_manager' },
         { u: 'Marco', e: 'marco@unibo.it', r: 'green_guardian', xp: 120 },
@@ -52,11 +48,9 @@ const seedDB = async () => {
     
     const plantsToCreate = [];
 
-    // --- GENERAZIONE (Target: ~25 piante per città x 4 città = 100 totali) ---
     for (const city of CITIES) {
         console.log(`🌱 Semina in corso a: ${city.name}...`);
         
-        // 1. ALBERO SPECIALE (1 per città)
         plantsToCreate.push({
             name: `Grande Albero di ${city.name}`,
             category: 'tree', species: 'Pinus Pinea',
@@ -64,7 +58,6 @@ const seedDB = async () => {
             waterLevel: 15, status: 'critical' 
         });
 
-        // 2. ALBERI SPARSI (10 per città)
         for (let i = 0; i < 10; i++) {
             plantsToCreate.push({
                 name: pickName(treeNames, i),
@@ -75,7 +68,6 @@ const seedDB = async () => {
             });
         }
 
-        // 3. AIUOLE (5 per città)
         for (let i = 0; i < 5; i++) {
             plantsToCreate.push({
                 name: pickName(flowerNames, i),
@@ -85,7 +77,6 @@ const seedDB = async () => {
             });
         }
 
-        // 4. SIEPI & CESPUGLI (3 per città)
         for (let i = 0; i < 3; i++) {
             const isHedge = i % 2 === 0;
             plantsToCreate.push({
@@ -97,7 +88,6 @@ const seedDB = async () => {
             });
         }
         
-        // 5. FIORIERE URBANE (3 per città)
         for (let i = 0; i < 3; i++) {
             plantsToCreate.push({
                 name: pickName(potNames, i),
@@ -107,13 +97,12 @@ const seedDB = async () => {
             });
         }
 
-        // 6. PIANTE GRASSE (3 per città - RICHIESTA UTENTE)
         for (let i = 0; i < 3; i++) {
             plantsToCreate.push({
                 name: pickName(succNames, i),
                 category: 'succulent', species: 'Succulenta Mix',
                 location: getRandomPos(city.lat, city.lng, 0.008, 0.008),
-                waterLevel: 80, status: 'healthy' // Le grasse partono sane
+                waterLevel: 80, status: 'healthy'
             });
         }
     }

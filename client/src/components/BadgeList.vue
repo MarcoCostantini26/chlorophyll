@@ -56,10 +56,9 @@ const openDetail = (badge) => selectedBadge.value = badge;
 </template>
 
 <style scoped>
-/* CARD COMPATTA MA CON ICONE GRANDI */
 .badge-card {
   background: white; 
-  padding: 10px 15px; /* Padding ridotto (era 20px) */
+  padding: 10px 15px;
   border-radius: 16px;
   box-shadow: 0 4px 20px rgba(0,0,0,0.05); 
   border: 1px solid #eee;
@@ -75,7 +74,7 @@ const openDetail = (badge) => selectedBadge.value = badge;
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 5px; /* Ridotto drasticamente il margine */
+  margin-bottom: 5px;
   border-bottom: 1px solid #f8f9fa;
   padding-bottom: 5px;
 }
@@ -83,23 +82,20 @@ const openDetail = (badge) => selectedBadge.value = badge;
 h3 { margin: 0; font-size: 0.9rem; color: #2c3e50; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px; }
 .counter { background: #eef2f3; padding: 2px 8px; border-radius: 20px; font-size: 0.7rem; font-weight: bold; color: #7f8c8d; }
 
-/* LOGICA SCROLL */
 .badge-scroll-container {
   display: flex;
   gap: 10px; 
   overflow-x: auto; 
-  padding-bottom: 4px; /* Spazio minimo per la scrollbar */
+  padding-bottom: 4px;
   scroll-behavior: smooth;
   align-items: center; 
   height: 100%; 
 }
 
-/* Scrollbar sottile */
 .badge-scroll-container::-webkit-scrollbar { height: 4px; }
 .badge-scroll-container::-webkit-scrollbar-track { background: transparent; }
 .badge-scroll-container::-webkit-scrollbar-thumb { background: #e0e0e0; border-radius: 2px; }
 
-/* LOGICA 5 VISIBILI */
 .badge-slot {
   display: flex;
   flex-direction: column;
@@ -107,23 +103,21 @@ h3 { margin: 0; font-size: 0.9rem; color: #2c3e50; font-weight: 800; text-transf
   cursor: pointer;
   transition: transform 0.2s;
   
-  /* FORMULA: 100% meno spazi (40px) diviso 5 */
   flex: 0 0 calc((100% - 40px) / 5);
   min-width: 60px; 
 }
 
 .badge-slot:hover { transform: translateY(-3px); }
 
-/* ICONE GRANDI */
 .icon-circle {
   width: 100%; 
   aspect-ratio: 1 / 1; 
-  max-width: 55px; /* GRANDI */
+  max-width: 55px;
   
   border-radius: 50%;
   display: flex; align-items: center; justify-content: center;
   
-  font-size: 1.6rem; /* Emoji grande */
+  font-size: 1.6rem;
   
   box-shadow: 0 3px 8px rgba(0,0,0,0.1);
   margin-bottom: 2px; 
@@ -135,7 +129,6 @@ h3 { margin: 0; font-size: 0.9rem; color: #2c3e50; font-weight: 800; text-transf
 .locked .icon-circle { background: #f1f2f6; border-color: #dfe4ea; color: #bdc3c7; }
 .locked .lock { font-size: 1.1rem; opacity: 0.5; }
 
-/* TESTO */
 .mini-name { 
   font-size: 0.6rem; 
   text-align: center; 
@@ -149,7 +142,6 @@ h3 { margin: 0; font-size: 0.9rem; color: #2c3e50; font-weight: 800; text-transf
 }
 .locked .mini-name { color: #95a5a6; }
 
-/* MODALE (X STABILE) */
 .modal-overlay { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.6); backdrop-filter: blur(4px); z-index: 5000; display: flex; justify-content: center; align-items: center; padding: 20px; }
 .detail-card { background: white; width: 100%; max-width: 320px; padding: 30px; border-radius: 20px; text-align: center; position: relative; box-shadow: 0 20px 50px rgba(0,0,0,0.3); animation: popIn 0.3s cubic-bezier(0.34, 1.56, 0.64, 1); }
 .close-btn { position: absolute; top: 15px; right: 15px; z-index: 10; background: #f1f2f6; border: none; width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center; justify-content: center; cursor: pointer; color: #7f8c8d; font-size: 1.1rem; font-weight: bold; transition: all 0.2s ease; box-shadow: 0 2px 5px rgba(0,0,0,0.05); }

@@ -4,11 +4,10 @@ import { ref } from 'vue';
 export const useUIStore = defineStore('ui', () => {
   const weather = ref('sunny');
   const weatherMap = ref({});
-  const alert = ref(null); // { title, msg, type }
+  const alert = ref(null);
   
-  // Modali e stato
   const isMenuOpen = ref(false);
-  const isWidgetAlive = ref(true); // Per refreshare le chat
+  const isWidgetAlive = ref(true);
   const showLevelUp = ref(false);
   const showBadgeModal = ref(false);
   const lastUnlockedBadge = ref({ name: '', desc: '' });
@@ -19,7 +18,6 @@ export const useUIStore = defineStore('ui', () => {
   
   const showAlert = (title, msg, type) => {
     alert.value = { title, msg, type };
-    // Auto-chiusura
     const duration = type === 'critical' ? 10000 : 6000;
     setTimeout(() => { alert.value = null; }, duration);
   };

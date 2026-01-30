@@ -12,9 +12,7 @@ const TreeSchema = new mongoose.Schema({
     lng: { type: Number, required: true }
   },
   
-  // 👇 AGGIUNGI QUESTA RIGA QUI! 👇
   city: { type: String, default: null }, 
-  // 👆 SENZA QUESTA, IL DB NON SALVA NULLA! 👆
 
   waterLevel: { type: Number, default: 100 },
   status: { type: String, default: 'healthy' },

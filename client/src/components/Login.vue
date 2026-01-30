@@ -1,8 +1,8 @@
 <script setup>
 import { ref } from 'vue';
 import { useRouter } from 'vue-router';
-import { useAuthStore } from '../stores/auth'; // <--- Usa lo store!
-import { useUIStore } from '../stores/ui';      // Per riattivare i widget
+import { useAuthStore } from '../stores/auth';
+import { useUIStore } from '../stores/ui';
 
 const username = ref('');
 const error = ref('');
@@ -15,10 +15,8 @@ const handleLogin = async () => {
   error.value = '';
 
   try {
-    // 1. Chiamata allo Store (che chiama l'API)
     await authStore.login(username.value);
     
-    // 2. Successo: Reset Widget e Redirect
     proceedToApp();
   } catch (e) {
     error.value = "Utente non trovato o errore server.";
@@ -31,7 +29,6 @@ const handleGuest = () => {
 };
 
 const proceedToApp = async () => {
-  // Trucco per resettare i widget chat quando cambia utente
   uiStore.isWidgetAlive = false; 
   await router.push('/');
   setTimeout(() => uiStore.isWidgetAlive = true, 100);

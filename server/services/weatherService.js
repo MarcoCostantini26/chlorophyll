@@ -1,9 +1,7 @@
-// 👇 NOTA: Percorso aggiornato per salire di un livello verso models
 const Tree = require('../models/Tree');
 const { TICK_RATE } = require('../config/constants');
 
-// COORDINATE DI DEFAULT
-const DEFAULT_CITY = { lat: 44.4949, lng: 11.3426 }; // Bologna
+const DEFAULT_CITY = { lat: 44.4949, lng: 11.3426 };
 
 let currentMap = {}; 
 

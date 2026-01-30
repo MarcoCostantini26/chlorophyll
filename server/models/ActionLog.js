@@ -3,12 +3,12 @@ const mongoose = require('mongoose');
 const ActionLogSchema = new mongoose.Schema({
   user: {
     type: mongoose.Schema.Types.ObjectId,
-    ref: 'User', // Collega all'utente
-    required: false // Se è un ospite o sistema, potrebbe essere null
+    ref: 'User',
+    required: false
   },
   tree: {
     type: mongoose.Schema.Types.ObjectId,
-    ref: 'Tree', // Collega all'albero
+    ref: 'Tree',
     required: true
   },
   actionType: {

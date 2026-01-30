@@ -11,7 +11,6 @@ export function useSocket() {
   const authStore = useAuthStore();
 
   const connect = () => {
-    // Evitiamo connessioni multiple
     if (socket && socket.connected) return;
 
     socket = io('http://localhost:3000');
@@ -20,9 +19,7 @@ export function useSocket() {
       console.log("🟢 Socket connesso");
     });
 
-    // --- ALBERI ---
     socket.on('tree_updated', (t) => {
-      // Logica Notifica Criticità
       const wasCritical = treeStore.trees.find(x => x._id === t._id)?.status === 'critical';
       const isMine = authStore.user && authStore.user.adoptedTrees && authStore.user.adoptedTrees.includes(t._id);
       
@@ -37,11 +34,9 @@ export function useSocket() {
       treeStore.trees = all;
     });
 
-    // --- METEO ---
     socket.on('weather_update', (w) => {
       if (w !== uiStore.weather) {
         uiStore.setWeather(w);
-        // Notifica cambio meteo
         if (['rain', 'rainy', 'sunny'].includes(w)) {
            const msg = w.includes('rain') ? 'La natura innaffia per te.' : 'Il terreno si asciuga.';
            const title = w.includes('rain') ? 'STA PIOVENDO! 🌧️' : 'SOLE ☀️';
@@ -54,9 +49,7 @@ export function useSocket() {
       uiStore.setWeatherMap(map);
     });
 
-    // --- UTENTE (Gamification) ---
     socket.on('user_updated', (u) => {
-      // Aggiorniamo l'utente solo se è quello loggato
       if (authStore.user && authStore.user._id === u._id) {
         authStore.setUser(u);
       }
@@ -69,7 +62,7 @@ export function useSocket() {
         uiStore.triggerBadge(d.badge);
       }
     });
-    
+
     socket.on('connect', () => {
       uiStore.isConnected = true;
       console.log("🟢 Connesso");

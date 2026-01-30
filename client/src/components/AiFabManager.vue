@@ -4,7 +4,6 @@ import UserChatWidget from './UserChatWidget.vue';
 import AdminChatWidget from './AdminChatWidget.vue';
 
 const authStore = useAuthStore();
-// Nessuna prop necessaria!
 </script>
 
 <template>

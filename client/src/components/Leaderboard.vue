@@ -6,14 +6,14 @@ const leaders = ref([]);
 
 const fetchLeaderboard = async () => {
   try {
-    const res = await fetch('http://localhost:3000/api/users/leaderboard'); // O usa api.getLeaderboard se la crei
+    const res = await fetch('http://localhost:3000/api/users/leaderboard'); 
     leaders.value = await res.json();
   } catch (e) { console.error(e); }
 };
 
 onMounted(() => {
   fetchLeaderboard();
-  setInterval(fetchLeaderboard, 5000); // Aggiorna ogni 5 sec
+  setInterval(fetchLeaderboard, 5000);
 });
 </script>
 

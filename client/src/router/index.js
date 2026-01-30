@@ -13,7 +13,7 @@ const router = createRouter({
       path: '/',
       name: 'home',
       component: DashboardView,
-      meta: { requiresAuth: true } // Richiede Login
+      meta: { requiresAuth: true } 
     },
     {
       path: '/login',
@@ -48,11 +48,9 @@ const router = createRouter({
   ]
 })
 
-// --- GUARDIA CHE PREVIENE SCHERMO NERO ---
 router.beforeEach((to, from, next) => {
   const user = localStorage.getItem('user'); 
   
-  // Se la pagina richiede login MA non c'è utente salvato -> VAI AL LOGIN
   if (to.meta.requiresAuth && !user) {
     next('/login');
   } else {

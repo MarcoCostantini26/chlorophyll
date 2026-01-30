@@ -1,6 +1,5 @@
 <script setup>
 import UserProfile from '../components/UserProfile.vue';
-// Non serve passare più niente!
 </script>
 
 <template>

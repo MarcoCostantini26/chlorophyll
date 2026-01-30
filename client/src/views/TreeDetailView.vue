@@ -11,7 +11,6 @@ const isLoading = ref(true);
 
 const fetchTreeDetail = async () => {
   try {
-    // Usiamo l'API centralizzata
     tree.value = await api.getTreeDetail(route.params.id);
   } catch (e) {
     console.error(e);
@@ -67,7 +66,6 @@ onMounted(fetchTreeDetail);
 </template>
 
 <style scoped>
-/* Copia lo stile originale di TreeDetailView.vue */
 .detail-page { padding: 40px; max-width: 1000px; margin: 0 auto; font-family: 'Inter', sans-serif; color: #2c3e50; }
 .nav-header { margin-bottom: 20px; }
 .nav-header button { background: #ecf0f1; border: none; padding: 10px 20px; border-radius: 8px; cursor: pointer; font-weight: bold; color: #7f8c8d; transition: all 0.2s; }

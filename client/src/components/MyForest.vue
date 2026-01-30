@@ -2,11 +2,9 @@
 const props = defineProps(['myTrees']);
 const emit = defineEmits(['water', 'focus-map']);
 
-// --- LOGICA CATEGORIE E AZIONI ---
 const getPlantConfig = (category) => {
   const cat = category || 'tree';
 
-  // 1. POTA ✂️
   if (['hedge', 'bush'].includes(cat)) {
     return {
       plantEmoji: cat === 'hedge' ? '✂️' : '🌾', 
@@ -16,7 +14,6 @@ const getPlantConfig = (category) => {
     };
   }
 
-  // 2. CONCIMA 🍂
   if (cat === 'potted') {
     return {
       plantEmoji: '🏺',
@@ -26,7 +23,6 @@ const getPlantConfig = (category) => {
     };
   }
 
-  // 3. PULISCI 🧹
   if (cat === 'succulent') {
     return {
       plantEmoji: '🌵',
@@ -36,7 +32,6 @@ const getPlantConfig = (category) => {
     };
   }
 
-  // 4. INNAFFIA 💧
   const emojis = { tree: '🌲', flowerbed: '🌻', vertical_garden: '🧱' };
   return {
     plantEmoji: emojis[cat] || '🌲',
@@ -104,7 +99,6 @@ const getPlantConfig = (category) => {
 </template>
 
 <style scoped>
-/* STILI INVARIATI */
 .my-forest-panel { background: white; border-radius: 12px; padding: 15px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); border: 1px solid #eee; display: flex; flex-direction: column; height: 100%; max-height: 500px; overflow: hidden; }
 .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; border-bottom: 2px solid #f0f2f5; padding-bottom: 10px; flex-shrink: 0; }
 h3 { margin: 0; color: #27ae60; font-size: 1rem; text-transform: uppercase; font-weight: 800; }

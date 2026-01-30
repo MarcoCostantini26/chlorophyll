@@ -1,7 +1,6 @@
 const BASE_URL = 'http://localhost:3000/api';
 
 export const api = {
-  // --- TREES ---
   async getTrees() {
     const res = await fetch(`${BASE_URL}/trees`);
     return res.json();
@@ -12,7 +11,6 @@ export const api = {
     return res.json();
   },
   
-  // --- AUTH ---
   async login(username) {
     const res = await fetch(`${BASE_URL}/users/login`, {
       method: 'POST',
@@ -33,7 +31,6 @@ export const api = {
     return res.json();
   },
 
-  // --- ADMIN ---
   async getStats() {
     const res = await fetch(`${BASE_URL}/admin/stats`);
     if (!res.ok) throw new Error('Errore stats');
@@ -48,7 +45,6 @@ export const api = {
     await fetch(`${BASE_URL}/admin/logs`, { method: 'DELETE' });
   },
 
-  // --- USERS ---
   async updateProfile(userId, data) {
     const res = await fetch(`${BASE_URL}/users/${userId}`, {
       method: 'PUT',
@@ -59,8 +55,6 @@ export const api = {
     return res.json();
   },
 
-  // --- EXTERNAL (Meteo) ---
-  // Nota: Possiamo chiamare Open-Meteo direttamente qui per tenere pulita la View
   async getForecast(lat, lng) {
     const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lng}&current_weather=true&hourly=temperature_2m,weathercode&forecast_days=2&timezone=auto`;
     const res = await fetch(url);

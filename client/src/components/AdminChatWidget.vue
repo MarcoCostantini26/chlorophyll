@@ -2,7 +2,6 @@
 import { ref, nextTick } from 'vue';
 import { useTreeStore } from '../stores/tree'; // <--- USIAMO LO STORE ALBERI
 
-// NIENTE PIÙ PROPS
 const treeStore = useTreeStore();
 
 const isOpen = ref(false);
@@ -25,17 +24,14 @@ const sendMessage = async () => {
   isLoading.value = true;
 
   try {
-    // 1. PRENDIAMO I DATI DALLO STORE (Reattività live!)
     const allTrees = treeStore.trees || [];
     
-    // Calcoli statistici (identici a prima, ma su dati store)
     const totalTrees = allTrees.length;
     const criticalList = allTrees.filter(t => t.status === 'critical');
     const thirstyList = allTrees.filter(t => t.status === 'thirsty');
     const totalWater = allTrees.reduce((sum, t) => sum + t.waterLevel, 0);
     const avgWater = totalTrees > 0 ? Math.round(totalWater / totalTrees) : 0;
 
-    // 2. GENERIAMO LA LISTA COMPLETA DEI NOMI
     const fullTreeList = allTrees.map(t => 
       `- ${t.name} [${t.status.toUpperCase()}, ${Math.round(t.waterLevel)}%]`
     ).join('\n');
@@ -48,7 +44,6 @@ const sendMessage = async () => {
       fullTreeList: fullTreeList 
     };
 
-    // 3. INVIO AL SERVER
     const res = await fetch('http://localhost:3000/api/ai/chat', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -110,10 +105,8 @@ const sendMessage = async () => {
 </template>
 
 <style scoped>
-/* STESSO STILE DI PRIMA */
 .chat-wrapper { position: fixed; bottom: 20px; right: 20px; z-index: 9999; display: flex; flex-direction: column; align-items: flex-end; font-family: 'Inter', sans-serif; }
 
-/* STILE VIOLA (Admin) */
 .chat-btn { 
   background: #8e44ad; color: white; border: none; padding: 15px 25px; 
   border-radius: 30px; font-weight: bold; cursor: pointer; 

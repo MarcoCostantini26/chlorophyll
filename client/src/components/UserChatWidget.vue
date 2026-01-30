@@ -1,10 +1,9 @@
 <script setup>
 import { ref, nextTick, computed } from 'vue';
-import { useTreeStore } from '../stores/tree'; // <--- Store
-import { useAuthStore } from '../stores/auth';   // <--- Store
-import { useUIStore } from '../stores/ui';       // <--- Store
+import { useTreeStore } from '../stores/tree';
+import { useAuthStore } from '../stores/auth';
+import { useUIStore } from '../stores/ui'; 
 
-// NIENTE PIÙ PROPS
 const treeStore = useTreeStore();
 const authStore = useAuthStore();
 const uiStore = useUIStore();
@@ -34,8 +33,7 @@ const sendMessage = async () => {
   isLoading.value = true;
 
   try {
-    // PRENDIAMO I DATI DAGLI STORE
-    const myTrees = treeStore.myTrees; // Computed dallo store!
+    const myTrees = treeStore.myTrees;
     
     const treesSummary = myTrees.length > 0
       ? myTrees.map(t => {
@@ -50,7 +48,6 @@ const sendMessage = async () => {
       trees_summary: treesSummary 
     };
 
-    // Chiamata diretta (per la chat AI non abbiamo fatto un metodo in api.js, ma va bene fetch qui o puoi spostarla)
     const res = await fetch('http://localhost:3000/api/ai/chat', {
       method: 'POST', 
       headers: { 'Content-Type': 'application/json' },
@@ -89,7 +86,6 @@ const sendMessage = async () => {
 </template>
 
 <style scoped>
-/* Incolla lo stile originale */
 .chat-wrapper { position: fixed; bottom: 20px; right: 20px; z-index: 9999; display: flex; flex-direction: column; align-items: flex-end; }
 .chat-btn { background: #2ecc71; color: white; border: none; padding: 15px 25px; border-radius: 30px; font-weight: bold; cursor: pointer; box-shadow: 0 4px 15px rgba(0,0,0,0.3); }
 .chat-window { width: 320px; height: 450px; background: #1e1e1e; border-radius: 15px; display: flex; flex-direction: column; overflow: hidden; box-shadow: 0 10px 40px rgba(0,0,0,0.5); border: 1px solid #333; }
