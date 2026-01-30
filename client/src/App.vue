@@ -18,9 +18,7 @@ const router = useRouter();
 
 // --- INIZIALIZZAZIONE ---
 onMounted(async () => {
-  // Carichiamo i dati iniziali
   await treeStore.fetchTrees();
-  // Connettiamo il socket
   socket.connect();
 });
 
@@ -31,7 +29,6 @@ const closeMenu = () => uiStore.isMenuOpen = false;
 const handleLogout = async () => {
   closeMenu();
   authStore.logout();
-  // Reset widget chat
   uiStore.isWidgetAlive = false;
   await router.push('/login');
   setTimeout(() => uiStore.isWidgetAlive = true, 100);
@@ -67,9 +64,9 @@ const handleLogout = async () => {
 
       <transition name="slide-down">
         <nav v-if="uiStore.isMenuOpen" class="mobile-nav">
-          <router-link to="/" class="mobile-link" @click="closeMenu">🌲 Home Page</router-link>
-          <router-link v-if="authStore.isAdmin" to="/admin/analytics" class="mobile-link" @click="closeMenu">🎛️ Control Room</router-link>
-          <router-link v-if="!authStore.isGuest" to="/profile" class="mobile-link" @click="closeMenu">👤 Profilo</router-link>
+          <router-link to="/" class="mobile-link dashboard-link" @click="closeMenu">🌲 Home Page</router-link>
+          <router-link v-if="authStore.isAdmin" to="/admin/analytics" class="mobile-link admin-link" @click="closeMenu">🎛️ Control Room</router-link>
+          <router-link v-if="!authStore.isGuest" to="/profile" class="mobile-link profile-link" @click="closeMenu">👤 Profilo</router-link>
           <button @click="handleLogout" class="mobile-link btn-mobile-logout">Esci 🚪</button>
         </nav>
       </transition>

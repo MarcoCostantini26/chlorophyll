@@ -211,12 +211,13 @@ const stackedOptions = {
                 <td><span class="badge" :class="tree.status">{{ tree.status }}</span></td>
                 <td><span :class="{ 'text-red': tree.waterLevel < 30 }">{{ Math.round(tree.waterLevel) }}%</span></td>
                 <td class="sparkline-cell" @click="openDetail(tree._id)">
-                   <div class="spark-hover">
-                     <svg width="100%" height="30" viewBox="0 0 100 30" preserveAspectRatio="none" class="sparkline-svg">
-                       <polyline :points="getSparklinePoints(tree.history)" fill="none" :stroke="tree.status === 'critical' ? '#e74c3c' : '#3498db'" stroke-width="2" />
+                  <div class="spark-hover">
+                    <svg width="100%" height="30" viewBox="0 0 100 30" preserveAspectRatio="none" class="sparkline-svg">
+                      <polyline :points="getSparklinePoints(tree.history)" fill="none" :stroke="tree.status === 'critical' ? '#e74c3c' : '#3498db'" stroke-width="2" />
                     </svg>
-                   </div>
-                </td>
+                    <span class="view-label">Apri Dettaglio</span>
+                  </div>
+              </td>
               </tr>
               <tr v-if="filteredTrees.length === 0"><td colspan="6" class="empty-row">Nessun risultato.</td></tr>
             </tbody>
