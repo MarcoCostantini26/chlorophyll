@@ -1,6 +1,8 @@
 /* src/assets/main.css */
 
-/* --- RESET & BASE --- */
+/* =========================================
+   1. RESET & BASE
+   ========================================= */
 * { box-sizing: border-box; }
 html, body { 
   margin: 0; padding: 0; width: 100%; max-width: 100vw; 
@@ -8,48 +10,119 @@ html, body {
   font-family: 'Inter', sans-serif; background-color: #121212; color: #ecf0f1; 
 }
 
-/* --- LAYOUT GENERALE --- */
+/* =========================================
+   2. LAYOUT GENERALE (STRUTTURA APP.VUE)
+   ========================================= */
 .app-root { display: flex; flex-direction: column; min-height: 100vh; }
 .main-content { padding-top: 90px; padding-bottom: 40px; flex: 1; box-sizing: border-box; width: 100%; }
 .content-wrapper { max-width: 1400px; margin: 0 auto; padding: 0 20px; }
 
-/* --- HEADER & NAVIGAZIONE --- */
+/* =========================================
+   3. HEADER & NAVIGAZIONE
+   ========================================= */
 .app-header { position: fixed; top: 0; left: 0; width: 100%; height: 70px; background: #1e1e1e; border-bottom: 2px solid #333; box-shadow: 0 4px 12px rgba(0,0,0,0.3); z-index: 1000; }
 .header-container { display: flex; justify-content: space-between; align-items: center; height: 100%; padding: 0 30px; max-width: 1400px; margin: 0 auto; }
-.main-title { color: #2ecc71; font-size: 1.5rem; margin: 0; font-weight: 800; cursor: pointer; text-decoration: none; }
-.brand-link { text-decoration: none; }
-.guest-badge { background: #3498db; color: white; padding: 4px 10px; border-radius: 4px; font-weight: bold; font-size: 0.8rem; }
-.status-pill { padding: 4px 10px; border-radius: 20px; font-size: 0.75rem; font-weight: bold; color: white; text-transform: uppercase; }
 .header-left { display: flex; align-items: center; gap: 15px; }
-.online { background: #2ecc71; } .offline { background: #e74c3c; }
 
+.brand-link { text-decoration: none; display: flex; align-items: center; transition: transform 0.2s; }
+.brand-link:hover { transform: scale(1.02); cursor: pointer; }
+.main-title { color: #2ecc71; font-size: 1.5rem; margin: 0; font-weight: 800; } 
+
+.status-pill { padding: 4px 10px; border-radius: 20px; font-size: 0.75rem; font-weight: bold; color: white; text-transform: uppercase; }
+.online { background: #2ecc71; } .offline { background: #e74c3c; }
+.guest-badge { background: #3498db; color: white; padding: 4px 10px; border-radius: 4px; font-weight: bold; font-size: 0.8rem; }
 
 .main-nav { display: flex; gap: 20px; align-items: center; }
-.nav-item { text-decoration: none; color: #bdc3c7; font-weight: 600; font-size: 0.95rem; transition: color 0.2s; cursor: pointer; display: flex; align-items: center; height: 70px; border-bottom: 3px solid transparent; background: none; border: none; font-family: inherit; }
-.nav-item:hover, .nav-item.router-link-active { color: #2ecc71; border-bottom-color: #2ecc71; }
+.nav-item { text-decoration: none; color: #bdc3c7; font-weight: 600; font-size: 0.95rem; transition: color 0.2s; background: none; border: none; font-family: inherit; cursor: pointer; display: flex; align-items: center; height: 70px; border-bottom: 3px solid transparent; }
 
-.btn-logout { background: none; border: 1px solid #e74c3c; color: #e74c3c; padding: 6px 14px; border-radius: 20px; height: auto; font-size: 0.85rem; transition: all 0.2s; cursor: pointer; border-bottom: 1px solid #e74c3c !important; }
+.dashboard-link:hover, .dashboard-link.router-link-active { color: #2ecc71; border-bottom-color: #2ecc71; }
+.admin-link:hover, .admin-link.router-link-active { color: #9b59b6; border-bottom-color: #9b59b6; }
+.profile-link:hover, .profile-link.router-link-active { color: #3498db; border-bottom-color: #3498db; }
+
+.btn-logout { color: #e74c3c !important; height: auto; border: 1px solid #e74c3c; padding: 6px 14px; border-radius: 20px; font-size: 0.85rem; line-height: 1; border-bottom: 1px solid #e74c3c !important; transition: all 0.2s; }
 .btn-logout:hover { background: #e74c3c; color: white !important; }
 
-/* --- ANIMAZIONI & TRANSIZIONI --- */
-.drop-in-enter-active, .drop-in-leave-active { transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
-.drop-in-enter-from, .drop-in-leave-to { transform: translate(-50%, -80px); opacity: 0; }
+/* =========================================
+   4. MODALI & NOTIFICHE GLOBALI
+   ========================================= */
+.level-up-modal { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: #f1c40f; color: white; padding: 20px 40px; border-radius: 50px; font-size: 2rem; z-index: 3000; font-weight: 900; animation: popIn 0.5s; }
+.badge-modal { position: fixed; top: 30%; left: 50%; transform: translate(-50%, -50%); background: #2c3e50; border: 4px solid #f1c40f; color: white; padding: 30px; text-align: center; border-radius: 20px; z-index: 4000; animation: popIn 0.5s; min-width: 300px; }
+.badge-modal .badge-icon { font-size: 5rem; margin-bottom: 15px; display: block; }
 
-.slide-down-enter-active, .slide-down-leave-active { transition: all 0.3s ease; max-height: 300px; opacity: 1; }
-.slide-down-enter-from, .slide-down-leave-to { max-height: 0; opacity: 0; overflow: hidden; }
-
-/* --- ALERTS & NOTIFICHE (UI STORE) --- */
-.weather-banner { position: fixed; top: 85px; left: 50%; transform: translateX(-50%); width: 90%; max-width: 500px; padding: 15px 25px; border-radius: 50px; z-index: 9999; color: white; box-shadow: 0 5px 20px rgba(0,0,0,0.4); backdrop-filter: blur(5px); border: 2px solid rgba(255,255,255,0.2); text-align: center; display: flex; align-items: center; gap: 15px; }
-.weather-icon { font-size: 2rem; }
-.weather-banner h3 { margin: 0; font-size: 1.1rem; }
-.weather-banner p { margin: 2px 0 0 0; font-size: 0.9rem; }
+.weather-banner { position: fixed; top: 85px; left: 50%; transform: translateX(-50%); width: 90%; max-width: 500px; display: flex; align-items: center; gap: 15px; padding: 15px 25px; border-radius: 50px; z-index: 9999; color: white; box-shadow: 0 5px 20px rgba(0,0,0,0.4); backdrop-filter: blur(5px); border: 2px solid rgba(255,255,255,0.2); }
 .weather-banner.rain { background: linear-gradient(90deg, #2980b9 0%, #3498db 100%); }
 .weather-banner.sunny { background: linear-gradient(90deg, #f39c12 0%, #f1c40f 100%); color: #2c3e50; }
 .weather-banner.critical { background: linear-gradient(90deg, #c0392b 0%, #e74c3c 100%); animation: pulse-border 1.5s infinite; border-color: rgba(255, 255, 255, 0.5); }
+.weather-icon { font-size: 2rem; }
+.weather-content h3 { margin: 0; font-size: 1.1rem; }
+.weather-content p { margin: 2px 0 0 0; font-size: 0.9rem; }
 
+/* =========================================
+   5. ANIMAZIONI
+   ========================================= */
+@keyframes popIn { from { transform: translate(-50%, -50%) scale(0.8); opacity: 0; } to { transform: translate(-50%, -50%) scale(1); opacity: 1; }}
 @keyframes pulse-border { 0% { box-shadow: 0 0 0 0 rgba(231, 76, 60, 0.7); transform: translateX(-50%) scale(1); } 50% { box-shadow: 0 0 20px 5px rgba(231, 76, 60, 0.4); transform: translateX(-50%) scale(1.02); } 100% { box-shadow: 0 0 0 0 rgba(231, 76, 60, 0); transform: translateX(-50%) scale(1); } }
+.drop-in-enter-active, .drop-in-leave-active { transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
+.drop-in-enter-from, .drop-in-leave-to { transform: translate(-50%, -80px); opacity: 0; }
+.slide-down-enter-active, .slide-down-leave-active { transition: all 0.3s ease; max-height: 300px; opacity: 1; }
+.slide-down-enter-from, .slide-down-leave-to { max-height: 0; opacity: 0; overflow: hidden; }
 
-/* --- MOBILE --- */
+.table-row { 
+  transition: background-color 0.2s ease; 
+}
+.table-row:hover { 
+  background-color: rgba(142, 68, 173, 0.1); 
+  border-left: 3px solid #8e44ad; 
+}
+
+.mini-select:hover, 
+.search-bar:hover { 
+  border-color: #9b59b6; 
+  cursor: pointer;
+}
+
+.mini-select:focus, 
+.search-bar:focus { 
+  outline: none; 
+  border-color: #8e44ad; 
+  box-shadow: 0 0 0 2px rgba(142, 68, 173, 0.3); 
+}
+
+.sparkline-cell:hover svg { 
+  opacity: 0.3; 
+  transition: opacity 0.2s;
+}
+
+.view-label { 
+  position: absolute; 
+  left: 50%; 
+  top: 50%; 
+  transform: translate(-50%, -50%); 
+  font-size: 0.75rem; 
+  color: #3498db; 
+  opacity: 0; 
+  font-weight: bold;
+  pointer-events: none; 
+  transition: opacity 0.2s; 
+  white-space: nowrap;
+}
+
+.sparkline-cell:hover .view-label { 
+  opacity: 1; 
+}
+
+.chart-card {
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+.chart-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 15px rgba(0,0,0,0.2);
+  border-color: #444;
+}
+
+/* =========================================
+   6. MOBILE MENU
+   ========================================= */
 .hamburger-btn { display: none; }
 .mobile-nav { display: none; }
 
@@ -60,7 +133,37 @@ html, body {
   .hamburger-btn { display: block; background: none; border: none; font-size: 2rem; color: #ecf0f1; cursor: pointer; }
   .mobile-nav { display: flex; flex-direction: column; position: absolute; top: 70px; left: 0; width: 100%; background: #2c3e50; border-bottom: 2px solid #2ecc71; box-shadow: 0 5px 15px rgba(0,0,0,0.5); z-index: 2000; }
   .mobile-link { text-decoration: none; color: white; padding: 15px 20px; font-size: 1.1rem; font-weight: bold; border-bottom: 1px solid rgba(255,255,255,0.1); display: block; }
+  .mobile-link.dashboard-link:hover { color: #2ecc71; background: rgba(46, 204, 113, 0.1); }
+  .mobile-link.admin-link { color: #9b59b6; }
+  .mobile-link.profile-link { color: #3498db; }
   .btn-mobile-logout { background: #e74c3c; text-align: left; border: none; cursor: pointer; color: white; }
   .content-wrapper { padding: 0; width: 100%; }
 }
+/* =========================================
+   7. INTERAZIONI TABELLA CONTROL ROOM
+   ========================================= */
 
+.table-row { transition: background-color 0.2s ease, border-left 0.2s ease; border-left: 3px solid transparent; }
+.table-row:hover { background-color: rgba(142, 68, 173, 0.15); border-left: 3px solid #8e44ad; }
+
+.name-cell { cursor: pointer; color: #9b59b6; transition: all 0.2s; }
+.name-cell:hover { color: #e056fd; text-decoration: underline; transform: translateX(5px); }
+
+.mini-select:hover, .search-bar:hover { border-color: #9b59b6; background-color: #34495e; }
+.mini-select:focus, .search-bar:focus { outline: none; border-color: #8e44ad; box-shadow: 0 0 0 3px rgba(142, 68, 173, 0.3); }
+
+/* --- EFFETTO GRAFICO SPARKLINE --- */
+.sparkline-cell { position: relative; cursor: pointer; }
+.sparkline-cell svg { transition: opacity 0.2s; }
+
+.sparkline-cell:hover svg { opacity: 0.2; }
+
+.view-label {
+  position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
+  font-size: 0.75rem; color: #3498db; font-weight: bold;
+  opacity: 0; pointer-events: none; transition: opacity 0.2s;
+  white-space: nowrap; background: rgba(0,0,0,0.8); padding: 4px 8px; border-radius: 4px;
+}
+.sparkline-cell:hover .view-label { opacity: 1; }
+
+.admin-table th.sortable:hover { color: #e056fd; background-color: rgba(255, 255, 255, 0.05); }
