@@ -1,6 +1,6 @@
 <script setup>
 import { ref, nextTick } from 'vue';
-import { useTreeStore } from '../stores/tree'; // <--- USIAMO LO STORE ALBERI
+import { useTreeStore } from '../stores/tree';
 
 const treeStore = useTreeStore();
 

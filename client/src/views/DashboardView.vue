@@ -97,7 +97,6 @@ const handleAdopt = async (treeId) => {
                 <h2>{{ authStore.user.username }}</h2>
                 <span class="role-badge" :class="authStore.user.role">{{ authStore.user.role.replace('_', ' ') }}</span>
               </div>
-              <div class="edit-hint">✏️</div>
             </div>
             <div v-if="!authStore.isGuest" class="user-xp-section">
               <div class="xp-header"><span>Lvl <strong>{{ authStore.user.level }}</strong></span><small>{{ authStore.user.xp }} XP</small></div>

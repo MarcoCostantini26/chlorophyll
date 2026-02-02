@@ -11,7 +11,7 @@ const uiStore = useUIStore();
 const isOpen = ref(false);
 const isLoading = ref(false);
 const userMessage = ref('');
-const messages = ref([{ role: 'assistant', text: 'Ciao! 🌿 Sono Dr. Chlorophyll. Come stanno le tue piante?' }]);
+const messages = ref([{ role: 'assistant', text: 'Ciao! 🌿 Sono Dr. Chlorophyll. Chiedimi ciò che vuoi?' }]);
 const chatBody = ref(null);
 
 const CATEGORY_MAP = {
