@@ -100,7 +100,7 @@ const createPopupContent = (tree) => {
       <div class="popup-header" style="background: ${headerColor}"></div>
       <div class="popup-body">
         <h3>${tree.name}</h3>
-        <p style="text-transform: uppercase; font-size: 0.75rem; color: #95a5a6; font-weight: bold; letter-spacing: 1px;">${config.typeLabel} • ${tree.species}</p>
+        <p style="text-transform: uppercase; font-size: 0.75rem; color: #95a5a6; font-weight: bold; letter-spacing: 1px;">${config.typeLabel}</p>
         <div class="bar-container"><div class="bar-fill" style="width:${tree.waterLevel}%; background-color:${barColor};"></div></div>
         <p>${config.statusLabel}: <strong class="val-text">${Math.round(tree.waterLevel)}%</strong></p>
         ${actionsHTML} 

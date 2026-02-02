@@ -3,7 +3,6 @@ import { ref, computed } from 'vue';
 import { api } from '../services/api';
 
 export const useAuthStore = defineStore('auth', () => {
-  // Inizializza leggendo dal localStorage
   const user = ref(JSON.parse(localStorage.getItem('user')) || null);
 
   const isAdmin = computed(() => user.value && user.value.role === 'city_manager');
