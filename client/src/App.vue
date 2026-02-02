@@ -51,7 +51,7 @@ const handleLogout = async () => {
         
         <nav class="main-nav desktop-nav">
           <router-link to="/" class="nav-item dashboard-link">🌲 Home Page</router-link>
-          <router-link v-if="authStore.isAdmin" to="/admin/analytics" class="nav-item admin-link">🎛️ Control Room</router-link>
+          <router-link v-if="authStore.isAdmin" to="/admin/analytics" class="nav-item admin-link">📊 Control Room</router-link>
           <router-link v-if="!authStore.isGuest" to="/profile" class="nav-item profile-link">👤 Profilo</router-link>
           <button @click="handleLogout" class="nav-item btn-logout">Esci</button>
         </nav>

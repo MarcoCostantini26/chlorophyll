@@ -132,7 +132,7 @@ const stackedOptions = {
     
     <div class="header-block">
       <div class="header-text">
-        <h1>🎛️ Control Room</h1>
+        <h1>📊 Control Room</h1>
         <p class="header-subtitle">Dati in tempo reale dall'ecosistema urbano.</p>
       </div>
       <button class="btn-back" @click="$router.push('/')">↩ Dashboard</button>
